@@ -1,0 +1,449 @@
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1082 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1082 → Unbekannt
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1082 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1082 → Unbekannt
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1082 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1082 → Unbekannt
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1082 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1082 → Unbekannt
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+⛔️ Nicht gefunden: 1084
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1070 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.screenshot: Timeout 30000ms exceeded.
+Call log:
+  - taking page screenshot
+  - waiting for fonts to load...
+  - fonts loaded
+
+    at /Users/husseinsouleiman/Documents/SVS-Dashboard/code/UX-Watcher/watcher.js:48:14 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.4.0
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Erstellt"
+✅ Status für 1077 → Erstellt
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1071 → Geprüft O
+🔍 1070 → Arbeitsschritt: "Versendet"
+✅ Status für 1070 → Versendet
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.goto: Target page, context or browser has been closed
+Call log:
+  - navigating to "https://ux.winvalue.de/", waiting until "load"
+
+    at /Users/husseinsouleiman/Documents/SVS-Dashboard/code/UX-Watcher/watcher.js:9:14
+
+Node.js v24.4.0
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1077 → Geprüft O
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1072 → Geprüft O
+🔍 1071 → Arbeitsschritt: "Versendet"
+✅ Status für 1071 → Versendet
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1077 → Geprüft O
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+🔍 1072 → Arbeitsschritt: "Versendet"
+✅ Status für 1072 → Versendet
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Erstellt"
+✅ Status für 1078 → Erstellt
+🔍 1077 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1077 → Geprüft O
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+🔍 1076 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1076 → Geprüft O
+🔍 1075 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1075 → Geprüft O
+🔍 1074 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1074 → Geprüft O
+🔍 1073 → Arbeitsschritt: "Vollständig"
+✅ Status für 1073 → Vollständig
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unbekannt"
+✅ Status für 1081 → Unbekannt
+🔍 1082 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1082 → Geprüft O
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.waitForNavigation: Target page, context or browser has been closed
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================
+    at /Users/husseinsouleiman/Documents/SVS-Dashboard/code/UX-Watcher/watcher.js:13:14
+
+Node.js v24.4.0
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.waitForNavigation: Target page, context or browser has been closed
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================
+    at /Users/husseinsouleiman/Documents/SVS-Dashboard/code/UX-Watcher/watcher.js:13:14
+
+Node.js v24.4.0
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1078 → Arbeitsschritt: "Versendet"
+✅ Status für 1078 → Versendet
+🔍 1077 → Arbeitsschritt: "Versendet"
+✅ Status für 1077 → Versendet
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1082 → Arbeitsschritt: "Versendet"
+✅ Status für 1082 → Versendet
+⛔️ Nicht gefunden: 1084
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+⛔️ Nicht gefunden: 1085
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+⛔️ Nicht gefunden: 1084
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+⛔️ Nicht gefunden: 1085
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+⛔️ Nicht gefunden: 1084
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+⛔️ Nicht gefunden: 1085
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1084 → Arbeitsschritt: "Erstellt"
+✅ Status für 1084 → Erstellt
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+⛔️ Nicht gefunden: 1085
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1084 → Arbeitsschritt: "Erstellt"
+✅ Status für 1084 → Erstellt
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+🔍 1085 → Arbeitsschritt: "Vollständig"
+✅ Status für 1085 → Vollständig
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1084 → Arbeitsschritt: "Erstellt"
+✅ Status für 1084 → Erstellt
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+🔍 1085 → Arbeitsschritt: "Vollständig"
+✅ Status für 1085 → Vollständig
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1084 → Arbeitsschritt: "Erstellt"
+✅ Status für 1084 → Erstellt
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+🔍 1085 → Arbeitsschritt: "Erstellt"
+✅ Status für 1085 → Erstellt
+✅ Login erfolgreich
+⏳ Setze Ansicht auf 100 Einträge...
+✅ Ansicht auf 100 Einträge erweitert
+📄 Aktenübersicht geladen
+🔍 1079 → Arbeitsschritt: "Geprüft O"
+✅ Status für 1079 → Geprüft O
+⛔️ Nicht gefunden: 966
+🔍 1081 → Arbeitsschritt: "Unvollständig"
+✅ Status für 1081 → Unvollständig
+🔍 1084 → Arbeitsschritt: "Erstellt"
+✅ Status für 1084 → Erstellt
+🔍 1083 → Arbeitsschritt: "Erstellt"
+✅ Status für 1083 → Erstellt
+🔍 1085 → Arbeitsschritt: "Erstellt"
+✅ Status für 1085 → Erstellt
