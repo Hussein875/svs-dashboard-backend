@@ -11,7 +11,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/a
 
 SPREADSHEET_ID = getenv('SHEET_ID', '10mfm9SVVDiWcxnfK2QuUCj3msaVFBQIQx34NnPlUEo4')
 TAB_NAME = getenv('SHEET_TAB_NAME', 'Dashboard')
-FOLDER_ID = getenv('DRIVE_FOLDER_ID', '15o5wS4TNaaMyukZx_ICK3kAA7nEaA3Sa')
+FOLDER_ID = getenv('DRIVE_FOLDER_ID', '1FVnM3Y_ktIvXMUPuAQTpJ-sMB5yI1gYf')
 
 current_year = str(datetime.now().year % 100).zfill(2)
 AKTE_REGEX = re.compile(rf'(\d{{3,5}})[/_:\-]{current_year}')
