@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+*/5 * * * * root GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-sa.json /usr/local/bin/python3 /app/import_gutachten_to_sheet.py >> /proc/1/fd/1 2>&1
+0 0 * * * root GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-sa.json /usr/local/bin/python3 /app/wochenstat_auswertung.py >> /proc/1/fd/1 2>&1
+

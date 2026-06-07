@@ -21,6 +21,10 @@ from import_gutachten_to_sheet import (
 )
 
 WOCHEN_STAT_AUSWERTUNG_TAB = getenv('SHEET_WOCHEN_STAT_AUSWERTUNG_TAB', 'WochenStat_Auswertung')
+SECTION_COLS = 10
+PROG_COL_LABEL = 0
+PROG_COL_VALUE = 3
+PROG_COL_EXPLAIN = 7
 
 # Dashboard-Farben (an SVS-Dashboard angelehnt)
 CLR_HEADER_BG = (0.10, 0.14, 0.20)
@@ -28,17 +32,35 @@ CLR_HEADER_FG = (0.95, 0.97, 1.00)
 CLR_SECTION_BG = (0.86, 0.91, 0.98)
 CLR_SECTION_FG = (0.12, 0.23, 0.45)
 CLR_TABLE_HEAD_BG = (0.12, 0.16, 0.22)
-CLR_ZEBRA = (0.97, 0.98, 0.99)
-CLR_CURRENT_YEAR = (0.88, 0.94, 1.00)
-CLR_POSITIVE = (0.85, 0.95, 0.88)
-CLR_POSITIVE_FG = (0.10, 0.40, 0.20)
-CLR_NEGATIVE = (0.98, 0.88, 0.88)
-CLR_NEGATIVE_FG = (0.55, 0.12, 0.12)
-CLR_INSIGHT_BG = (1.00, 0.98, 0.90)
+CLR_ZEBRA = (0.93, 0.96, 0.99)
+CLR_CURRENT_YEAR = (0.82, 0.91, 1.00)
+CLR_POSITIVE = (0.78, 0.93, 0.82)
+CLR_POSITIVE_FG = (0.08, 0.38, 0.16)
+CLR_NEGATIVE = (0.97, 0.82, 0.82)
+CLR_NEGATIVE_FG = (0.62, 0.10, 0.10)
+CLR_INSIGHT_BG = (1.00, 0.96, 0.82)
+KW_PROFILE_TOP_N = int(getenv('KW_PROFILE_TOP_N', '3'))
+KW_PROFILE_BOTTOM_N = int(getenv('KW_PROFILE_BOTTOM_N', '3'))
+WEAK_KW_IGNORE = {52, 53}
 
 
 def _color(red, green, blue):
     return {'red': red, 'green': green, 'blue': blue}
+
+
+def section_title(text):
+    row = [''] * SECTION_COLS
+    row[0] = text
+    return row
+
+
+def prog_row(label, value='', explain=''):
+    row = [''] * SECTION_COLS
+    row[PROG_COL_LABEL] = label
+    if value != '':
+        row[PROG_COL_VALUE] = str(value)
+    row[PROG_COL_EXPLAIN] = explain
+    return row
 
 
 def read_jahressummen(sheets_service):
@@ -85,8 +107,27 @@ def parse_wochen_rows(rows):
     return [(year, kw, anzahl) for (year, kw), anzahl in sorted(by_key.items())]
 
 
-def year_stats(parsed, jahressummen=None):
+def year_is_complete(parsed, year, *, generated_at=None):
+    """Jahr gilt als abgeschlossen, wenn alle ISO-KW erfasst sind."""
+    generated_at = generated_at or datetime.now()
+    if year < generated_at.year:
+        return True
+    year_rows = sorted(kw for y, kw, _ in parsed if y == year)
+    if not year_rows:
+        return False
+    return year_rows[-1] >= iso_weeks_in_year(year)
+
+
+def _weakest_week(weeks):
+    """Schwächste KW; 52/53 auslassen (oft unvollständige Jahresenden)."""
+    eligible = [item for item in weeks if item[0] not in WEAK_KW_IGNORE]
+    pool = eligible or list(weeks)
+    return min(pool, key=lambda item: item[1])
+
+
+def year_stats(parsed, jahressummen=None, *, generated_at=None):
     jahressummen = jahressummen or {}
+    generated_at = generated_at or datetime.now()
     by_year = defaultdict(list)
     for year, kw, anzahl in parsed:
         by_year[year].append((kw, anzahl))
@@ -95,10 +136,14 @@ def year_stats(parsed, jahressummen=None):
     for year in sorted(by_year):
         weeks = by_year[year]
         counts = [a for _, a in weeks]
-        total = jahressummen.get(year, sum(counts))
+        complete = year_is_complete(parsed, year, generated_at=generated_at)
+        if complete and year in jahressummen:
+            total = jahressummen[year]
+        else:
+            total = sum(counts)
         n = len(counts)
         strongest = max(weeks, key=lambda item: item[1])
-        weakest = min(weeks, key=lambda item: item[1])
+        weakest = _weakest_week(weeks)
         stats[year] = {
             'weeks': n,
             'total': total,
@@ -132,6 +177,34 @@ def kw_profile(parsed):
         by_kw[kw][year] = anzahl
         years.add(year)
     return by_kw, sorted(years)
+
+
+def kw_profile_year_extremes(by_kw, year, profile_data_start, display_years, *,
+                           top_n=KW_PROFILE_TOP_N, bottom_n=KW_PROFILE_BOTTOM_N):
+    """Beste/schlechteste KW eines Jahres in der KW-Vergleich-Spalte markieren."""
+    if year not in display_years:
+        return []
+    col = display_years.index(year) + 1
+    entries = []
+    for row_offset, kw in enumerate(sorted(by_kw)):
+        val = by_kw[kw].get(year, '')
+        if val != '':
+            entries.append((val, kw, profile_data_start + row_offset))
+    if not entries:
+        return []
+
+    sorted_desc = sorted(entries, key=lambda x: (-x[0], x[1]))
+    sorted_asc = sorted(entries, key=lambda x: (x[0], x[1]))
+    highlights = []
+    top_cells = set()
+    for _, _, sheet_row in sorted_desc[:top_n]:
+        top_cells.add(sheet_row)
+        highlights.append({'row': sheet_row, 'col': col, 'kind': 'above'})
+    for _, _, sheet_row in sorted_asc[:bottom_n]:
+        if sheet_row in top_cells:
+            continue
+        highlights.append({'row': sheet_row, 'col': col, 'kind': 'below'})
+    return highlights
 
 
 def yoy_delta(current, previous):
@@ -281,27 +354,13 @@ def compute_insights(parsed, year_summary, current_year):
                         f'({worst_gain[1]:+d} GA)'
                     )
 
-    forecast = compute_year_forecast(parsed, year_summary, current_year)
-    if forecast and not forecast['complete']:
-        prev = year_summary.get(current_year - 1)
-        line = (
-            f'Prognose {current_year}: ca. {forecast["forecast_total"]} GA '
-            f'bis Jahresende (Ø {forecast["avg_overall"]}/Woche × '
-            f'{forecast["weeks_remaining"]} verbleibende KW + {forecast["ytd_total"]} YTD)'
-        )
-        if prev:
-            delta = yoy_delta(forecast['forecast_total'], prev['total'])
-            if delta is not None:
-                line += f' — ca. {delta:+.1f}% vs. {current_year - 1} Gesamt ({prev["total"]})'
-        insights.append(line)
-
     return insights
 
 
 def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
     generated_at = generated_at or datetime.now()
     current_year = generated_at.year
-    year_summary = year_stats(parsed, jahressummen)
+    year_summary = year_stats(parsed, jahressummen, generated_at=generated_at)
 
     values = []
     values.append([
@@ -316,7 +375,7 @@ def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
     values.append([])
 
     # --- KPI overview ---
-    values.append(['Kennzahlen', '', '', '', '', '', ''])
+    values.append(section_title('Kennzahlen'))
     kpi_header = ['Jahr', 'Wochen', 'Summe', 'Ø/Woche', 'Median', 'Min', 'Max',
                   'Stärkste KW', 'Schwächste KW', 'YoY Summe %']
     values.append(kpi_header)
@@ -326,7 +385,8 @@ def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
     for i, year in enumerate(years_sorted):
         s = year_summary[year]
         prev_total = year_summary[years_sorted[i - 1]]['total'] if i > 0 else None
-        yoy = yoy_delta(s['total'], prev_total) if prev_total else None
+        complete = year_is_complete(parsed, year, generated_at=generated_at)
+        yoy = yoy_delta(s['total'], prev_total) if prev_total and complete else None
         values.append([
             str(year),
             str(s['weeks']),
@@ -342,14 +402,24 @@ def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
     values.append([])
 
     # --- KW profile (last 6 years or all) ---
-    profile_start = None
+    profile_header_row = None
+    profile_data_start = None
+    profile_section_row = None
+    profile_avg_col = None
+    profile_highlights = []
     by_kw, profile_years = kw_profile(parsed)
     if by_kw and profile_years:
         display_years = profile_years[-6:] if len(profile_years) > 6 else profile_years
-        values.append(['KW-Vergleich über Jahre', '', '', ''])
+        profile_avg_col = 1 + len(display_years)
+        values.append(section_title('KW-Vergleich über Jahre'))
+        profile_section_row = len(values)
         profile_header = ['KW'] + [str(y) for y in display_years] + ['Ø']
+        while len(profile_header) < SECTION_COLS:
+            profile_header.append('')
+        profile_header = profile_header[:SECTION_COLS]
         values.append(profile_header)
-        profile_start = len(values)
+        profile_header_row = len(values)
+        profile_data_start = profile_header_row + 1
 
         for kw in sorted(by_kw):
             year_vals = [by_kw[kw].get(y, '') for y in display_years]
@@ -357,115 +427,60 @@ def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
             avg = round(sum(present) / len(present), 1) if present else ''
             values.append([str(kw)] + [str(v) if v != '' else '—' for v in year_vals]
                           + [str(avg) if avg != '' else '—'])
+        if current_year in display_years:
+            profile_highlights = kw_profile_year_extremes(
+                by_kw, current_year, profile_data_start, display_years)
         values.append([])
 
     # --- Jahresend-Prognose ---
-    prognosis_start = None
+    prognosis_section_row = None
+    prognosis_header_row = None
     prognosis_highlight_row = None
     forecast = compute_year_forecast(
         parsed, year_summary, current_year, generated_at=generated_at)
-    if forecast:
-        values.append([f'Prognose Jahresende {current_year}', '', '', ''])
-        prognosis_start = len(values)
-        values.append(['Kennzahl', 'Wert', 'Erläuterung', ''])
-
-        if forecast['complete']:
-            values.append([
-                'Status',
-                'Jahr abgeschlossen',
-                f'{forecast["total_weeks"]} Kalenderwochen erfasst',
-                '',
-            ])
-            values.append([
-                'Jahressumme',
-                str(forecast['ytd_total']),
-                'Ist-Wert aus allen Wochen',
-                '',
-            ])
-        else:
-            prev = year_summary.get(current_year - 1)
-            values.append([
-                'Stand',
-                f'bis KW {forecast["last_kw"]:02d} ({forecast["as_of"]})',
-                f'{forecast["weeks_done"]} von {forecast["total_weeks"]} KW mit Daten',
-                '',
-            ])
-            values.append([
-                'Bisher (YTD)',
-                str(forecast['ytd_total']),
-                'Summe aller erfassten Wochen',
-                '',
-            ])
-            values.append([
-                'Ø pro Woche (gesamt)',
-                str(forecast['avg_overall']),
-                f'YTD ÷ {forecast["weeks_done"]} Wochen',
-                '',
-            ])
-            values.append([
-                'Ø pro Woche (letzte 12 KW)',
-                str(forecast['avg_recent']),
-                'Aktuelleres Tempo',
-                '',
-            ])
-            values.append([
-                'Verbleibende KW',
-                str(forecast['weeks_remaining']),
-                f'bis KW {forecast["total_weeks"]:02d}',
-                '',
-            ])
-            values.append([
-                'Erwartete Rest-GA (Ø gesamt)',
-                str(forecast['forecast_rest']),
-                f'{forecast["avg_overall"]} × {forecast["weeks_remaining"]} KW',
-                '',
-            ])
-            prognosis_highlight_row = len(values) + 1
-            values.append([
-                'Prognose Jahresende',
-                str(forecast['forecast_total']),
-                'YTD + erwartete Rest-GA (lineare Hochrechnung)',
-                '',
-            ])
-            values.append([
-                'Prognose (12-Wochen-Tempo)',
-                str(forecast['forecast_recent']),
-                'YTD + Ø letzte 12 KW × Rest',
-                '',
-            ])
-            if prev:
-                delta = yoy_delta(forecast['forecast_total'], prev['total'])
-                values.append([
-                    f'vs. {current_year - 1} Gesamt',
-                    f'{delta:+.1f}%' if delta is not None else '—',
-                    f'Prognose {forecast["forecast_total"]} vs. Ist {prev["total"]} ({current_year - 1})',
-                    '',
-                ])
-            values.append([
-                'Hinweis',
-                '',
-                'Schätzung ohne Saisonkorrektur — Feiertage/Urlaub nicht berücksichtigt',
-                '',
-            ])
+    if forecast and forecast['complete']:
+        values.append(section_title(f'Prognose Jahresende {current_year}'))
+        prognosis_section_row = len(values)
+        values.append(prog_row('Kennzahl', 'Wert', 'Erläuterung'))
+        prognosis_header_row = len(values)
+        values.append(prog_row(
+            'Status',
+            'Jahr abgeschlossen',
+            f'{forecast["total_weeks"]} Kalenderwochen erfasst',
+        ))
+        values.append(prog_row(
+            'Jahressumme',
+            forecast['ytd_total'],
+            'Ist-Wert aus allen Wochen',
+        ))
         values.append([])
 
     # --- Insights ---
-    values.append(['Erkenntnisse', '', ''])
-    insights_start = len(values)
-    for line in compute_insights(parsed, year_summary, current_year):
-        values.append([line])
+    insights_section_row = len(values) + 1
+    values.append(section_title('Erkenntnisse'))
+    insights_data_start = len(values) + 1
+    insight_lines = compute_insights(parsed, year_summary, current_year)
+    for line in insight_lines:
+        values.append([line] + [''] * (SECTION_COLS - 1))
     values.append([])
 
     meta = {
         'current_year': current_year,
-        'kpi_start': kpi_start,
+        'kpi_header_row': kpi_start,
+        'kpi_data_start': kpi_start,
         'kpi_rows': len(years_sorted),
-        'profile_start': profile_start,
+        'profile_section_row': profile_section_row if by_kw else None,
+        'profile_header_row': profile_header_row,
+        'profile_data_start': profile_data_start,
         'profile_rows': len(by_kw) if by_kw else 0,
-        'prognosis_start': prognosis_start,
+        'profile_avg_col': profile_avg_col,
+        'profile_highlights': profile_highlights,
+        'prognosis_section_row': prognosis_section_row,
+        'prognosis_header_row': prognosis_header_row,
         'prognosis_highlight_row': prognosis_highlight_row,
-        'insights_start': insights_start,
-        'insights_rows': len(compute_insights(parsed, year_summary, current_year)),
+        'insights_section_row': insights_section_row,
+        'insights_data_start': insights_data_start,
+        'insights_rows': len(insight_lines),
         'total_rows': len(values),
     }
     return values, meta
@@ -474,7 +489,7 @@ def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
 def _get_auswertung_sheet(sheets_service):
     spreadsheet = sheets_service.spreadsheets().get(
         spreadsheetId=SPREADSHEET_ID,
-        fields='sheets(properties.sheetId,properties.title,conditionalFormats)',
+        fields='sheets(properties.sheetId,properties.title,conditionalFormats,merges)',
     ).execute()
     for sheet in spreadsheet.get('sheets', []):
         if sheet['properties']['title'] == WOCHEN_STAT_AUSWERTUNG_TAB:
@@ -482,21 +497,38 @@ def _get_auswertung_sheet(sheets_service):
     return None
 
 
-def _clear_conditional_formats(sheets_service, sheet_id):
+def _clear_sheet_layout(sheets_service, sheet_id):
     sheet = _get_auswertung_sheet(sheets_service)
     if not sheet:
         return
+    requests = []
+    for merge in sheet.get('merges', []) or []:
+        requests.append({'unmergeCells': {'range': merge}})
     rule_count = len(sheet.get('conditionalFormats', []) or [])
-    if not rule_count:
-        return
-    requests = [
-        {'deleteConditionalFormatRule': {'sheetId': sheet_id, 'index': index}}
-        for index in range(rule_count - 1, -1, -1)
-    ]
-    sheets_service.spreadsheets().batchUpdate(
-        spreadsheetId=SPREADSHEET_ID,
-        body={'requests': requests},
-    ).execute()
+    for index in range(rule_count - 1, -1, -1):
+        requests.append({
+            'deleteConditionalFormatRule': {'sheetId': sheet_id, 'index': index},
+        })
+    if requests:
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={'requests': requests},
+        ).execute()
+
+
+def _merge_row(sheet_id, row_index, start_col=0, end_col=SECTION_COLS):
+    return {
+        'mergeCells': {
+            'range': {
+                'sheetId': sheet_id,
+                'startRowIndex': row_index,
+                'endRowIndex': row_index + 1,
+                'startColumnIndex': start_col,
+                'endColumnIndex': end_col,
+            },
+            'mergeType': 'MERGE_ALL',
+        }
+    }
 
 
 def format_auswertung_tab(sheets_service, total_rows, meta):
@@ -504,10 +536,11 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
     if sheet_id is None or total_rows < 2:
         return
 
-    _clear_conditional_formats(sheets_service, sheet_id)
+    _clear_sheet_layout(sheets_service, sheet_id)
 
     current_year = meta.get('current_year', datetime.now().year)
-    kpi_data_start = meta['kpi_start']
+    kpi_header_row = meta['kpi_header_row']
+    kpi_data_start = meta['kpi_data_start']
     kpi_data_end = kpi_data_start + meta['kpi_rows']
 
     requests = [
@@ -545,13 +578,11 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
     ]
 
     section_rows = [
-        3,
-        meta['kpi_start'] - 1,
-        meta.get('profile_start') and meta['profile_start'] - 2,
-        meta.get('prognosis_start') and meta['prognosis_start'] - 1,
-        meta['insights_start'] - 1,
+        (3, 'LEFT', CLR_SECTION_BG),
+        (kpi_header_row - 1, 'LEFT', CLR_SECTION_BG),
+        (meta.get('insights_section_row'), 'LEFT', CLR_SECTION_BG),
     ]
-    for sheet_row in section_rows:
+    for sheet_row, align, bg in section_rows:
         if not sheet_row or sheet_row < 1:
             continue
         row_index = sheet_row - 1
@@ -562,11 +593,12 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
                     'startRowIndex': row_index,
                     'endRowIndex': row_index + 1,
                     'startColumnIndex': 0,
-                    'endColumnIndex': 10,
+                    'endColumnIndex': SECTION_COLS,
                 },
                 'cell': {
                     'userEnteredFormat': {
-                        'backgroundColor': _color(*CLR_SECTION_BG),
+                        'backgroundColor': _color(*bg),
+                        'horizontalAlignment': align,
                         'textFormat': {
                             'bold': True,
                             'fontSize': 11,
@@ -574,14 +606,48 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
                         },
                     }
                 },
-                'fields': 'userEnteredFormat(backgroundColor,textFormat)',
+                'fields': 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)',
             }
         })
 
+    merged_section_rows = [
+        meta.get('profile_section_row'),
+        meta.get('prognosis_section_row'),
+    ]
+    for sheet_row in merged_section_rows:
+        if not sheet_row:
+            continue
+        row_index = sheet_row - 1
+        requests.append({
+            'repeatCell': {
+                'range': {
+                    'sheetId': sheet_id,
+                    'startRowIndex': row_index,
+                    'endRowIndex': row_index + 1,
+                    'startColumnIndex': 0,
+                    'endColumnIndex': SECTION_COLS,
+                },
+                'cell': {
+                    'userEnteredFormat': {
+                        'backgroundColor': _color(*CLR_TABLE_HEAD_BG),
+                        'horizontalAlignment': 'CENTER',
+                        'textFormat': {
+                            'bold': True,
+                            'fontSize': 11,
+                            'foregroundColor': _color(*CLR_HEADER_FG),
+                        },
+                    }
+                },
+                'fields': 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)',
+            }
+        })
+        requests.append(_merge_row(sheet_id, row_index))
+
+    requests.append(_merge_row(sheet_id, 0, start_col=0, end_col=3))
+
     header_rows = [
-        meta['kpi_start'],
-        meta.get('profile_start'),
-        meta.get('prognosis_start'),
+        kpi_header_row,
+        meta.get('profile_header_row'),
     ]
     for sheet_row in header_rows:
         if not sheet_row:
@@ -650,48 +716,124 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
                     }
                 })
 
-    prognosis_start = meta.get('prognosis_start')
-    if prognosis_start:
-        prog_header = prognosis_start
-        prog_data_end = meta['insights_start'] - 2
+    prognosis_header_row = meta.get('prognosis_header_row')
+    insights_section_row = meta.get('insights_section_row')
+    if prognosis_header_row and insights_section_row:
+        prog_header_idx = prognosis_header_row - 1
+        prog_data_end_idx = insights_section_row - 3
         requests.append({
             'repeatCell': {
                 'range': {
                     'sheetId': sheet_id,
-                    'startRowIndex': prog_header,
-                    'endRowIndex': prog_data_end,
-                    'startColumnIndex': 1,
-                    'endColumnIndex': 2,
+                    'startRowIndex': prog_header_idx,
+                    'endRowIndex': prog_header_idx + 1,
+                    'startColumnIndex': PROG_COL_VALUE,
+                    'endColumnIndex': PROG_COL_VALUE + 1,
                 },
                 'cell': {
                     'userEnteredFormat': {
                         'horizontalAlignment': 'RIGHT',
                         'textFormat': {'bold': True, 'fontSize': 11},
-                        'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0'},
                     }
                 },
-                'fields': 'userEnteredFormat(horizontalAlignment,textFormat,numberFormat)',
+                'fields': 'userEnteredFormat(horizontalAlignment,textFormat)',
             }
         })
-        highlight_row = meta.get('prognosis_highlight_row')
-        if highlight_row:
-            row_idx = highlight_row - 1
+        if prog_data_end_idx > prognosis_header_row:
             requests.append({
                 'repeatCell': {
                     'range': {
                         'sheetId': sheet_id,
-                        'startRowIndex': row_idx,
-                        'endRowIndex': row_idx + 1,
-                        'startColumnIndex': 0,
-                        'endColumnIndex': 3,
+                        'startRowIndex': prognosis_header_row,
+                        'endRowIndex': prog_data_end_idx,
+                        'startColumnIndex': PROG_COL_VALUE,
+                        'endColumnIndex': PROG_COL_VALUE + 1,
                     },
                     'cell': {
                         'userEnteredFormat': {
-                            'backgroundColor': _color(*CLR_CURRENT_YEAR),
+                            'horizontalAlignment': 'LEFT',
+                            'textFormat': {'bold': True, 'fontSize': 11},
+                        }
+                    },
+                    'fields': 'userEnteredFormat(horizontalAlignment,textFormat)',
+                }
+            })
+        highlight_row = meta.get('prognosis_highlight_row')
+        if highlight_row:
+            row_idx = highlight_row - 1
+            for start_col, end_col in (
+                (PROG_COL_LABEL, PROG_COL_LABEL + 1),
+                (PROG_COL_VALUE, PROG_COL_VALUE + 1),
+                (PROG_COL_EXPLAIN, PROG_COL_EXPLAIN + 1),
+            ):
+                requests.append({
+                    'repeatCell': {
+                        'range': {
+                            'sheetId': sheet_id,
+                            'startRowIndex': row_idx,
+                            'endRowIndex': row_idx + 1,
+                            'startColumnIndex': start_col,
+                            'endColumnIndex': end_col,
+                        },
+                        'cell': {
+                            'userEnteredFormat': {
+                                'backgroundColor': _color(*CLR_CURRENT_YEAR),
+                                'textFormat': {
+                                    'bold': True,
+                                    'fontSize': 11,
+                                    'foregroundColor': _color(*CLR_SECTION_FG),
+                                },
+                            }
+                        },
+                        'fields': 'userEnteredFormat(backgroundColor,textFormat)',
+                    }
+                })
+
+    profile_data_start = meta.get('profile_data_start')
+    profile_rows = meta.get('profile_rows', 0)
+    profile_avg_col = meta.get('profile_avg_col')
+    if profile_data_start and profile_rows and profile_avg_col:
+        requests.append({
+            'repeatCell': {
+                'range': {
+                    'sheetId': sheet_id,
+                    'startRowIndex': profile_data_start - 1,
+                    'endRowIndex': profile_data_start - 1 + profile_rows,
+                    'startColumnIndex': 1,
+                    'endColumnIndex': profile_avg_col + 1,
+                },
+                'cell': {
+                    'userEnteredFormat': {
+                        'backgroundColor': _color(1, 1, 1),
+                        'textFormat': {
+                            'bold': False,
+                            'foregroundColor': _color(0, 0, 0),
+                        },
+                    }
+                },
+                'fields': 'userEnteredFormat(backgroundColor,textFormat)',
+            }
+        })
+        for hl in meta.get('profile_highlights', []):
+            if hl['kind'] == 'above':
+                bg, fg = CLR_POSITIVE, CLR_POSITIVE_FG
+            else:
+                bg, fg = CLR_NEGATIVE, CLR_NEGATIVE_FG
+            requests.append({
+                'repeatCell': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'startRowIndex': hl['row'] - 1,
+                        'endRowIndex': hl['row'],
+                        'startColumnIndex': hl['col'],
+                        'endColumnIndex': hl['col'] + 1,
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'backgroundColor': _color(*bg),
                             'textFormat': {
                                 'bold': True,
-                                'fontSize': 11,
-                                'foregroundColor': _color(*CLR_SECTION_FG),
+                                'foregroundColor': _color(*fg),
                             },
                         }
                     },
@@ -699,30 +841,43 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
                 }
             })
 
-    insights_start = meta['insights_start']
-    insights_end = insights_start + meta.get('insights_rows', 0)
-    if meta.get('insights_rows'):
+    insights_data_start = meta.get('insights_data_start')
+    insights_rows = meta.get('insights_rows', 0)
+    if insights_section_row:
+        requests.append(_merge_row(sheet_id, insights_section_row - 1))
+    if insights_data_start and insights_rows:
         requests.append({
             'repeatCell': {
                 'range': {
                     'sheetId': sheet_id,
-                    'startRowIndex': insights_start,
-                    'endRowIndex': insights_end,
+                    'startRowIndex': insights_data_start - 1,
+                    'endRowIndex': insights_data_start - 1 + insights_rows,
                     'startColumnIndex': 0,
-                    'endColumnIndex': 10,
+                    'endColumnIndex': SECTION_COLS,
                 },
                 'cell': {
                     'userEnteredFormat': {
                         'backgroundColor': _color(*CLR_INSIGHT_BG),
                         'wrapStrategy': 'WRAP',
+                        'horizontalAlignment': 'LEFT',
+                        'verticalAlignment': 'TOP',
                         'textFormat': {'fontSize': 10},
                     }
                 },
-                'fields': 'userEnteredFormat(backgroundColor,wrapStrategy,textFormat)',
+                'fields': (
+                    'userEnteredFormat(backgroundColor,wrapStrategy,'
+                    'horizontalAlignment,verticalAlignment,textFormat)'
+                ),
             }
         })
+        for i in range(insights_rows):
+            requests.append(_merge_row(sheet_id, insights_data_start - 1 + i))
 
-    col_widths = [(72, 0, 1), (56, 1, 2), (72, 2, 3), (64, 3, 7), (110, 7, 9), (80, 9, 10)]
+    col_widths = [
+        (72, 0, 1), (56, 1, 2), (72, 2, 3), (64, 3, 4), (64, 4, 5),
+        (64, 5, 6), (64, 6, 7), (110, 7, 8), (110, 8, 9), (80, 9, 10),
+        (120, 10, 15),
+    ]
     for width, start, end in col_widths:
         requests.append({
             'updateDimensionProperties': {
@@ -809,7 +964,60 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
                     'booleanRule': {
                         'condition': {
                             'type': 'TEXT_CONTAINS',
-                            'values': [{'userEnteredValue': '-'}],
+                            'values': [{'userEnteredValue': '-%'}],
+                        },
+                        'format': {
+                            'backgroundColor': _color(*CLR_NEGATIVE),
+                            'textFormat': {
+                                'bold': True,
+                                'foregroundColor': _color(*CLR_NEGATIVE_FG),
+                            },
+                        },
+                    },
+                },
+                'index': 0,
+            }
+        })
+
+    prognosis_header_row = meta.get('prognosis_header_row')
+    insights_section_row = meta.get('insights_section_row')
+    if prognosis_header_row and insights_section_row:
+        prog_value_range = {
+            'sheetId': sheet_id,
+            'startRowIndex': prognosis_header_row,
+            'endRowIndex': insights_section_row - 3,
+            'startColumnIndex': PROG_COL_VALUE,
+            'endColumnIndex': PROG_COL_VALUE + 1,
+        }
+        cf_requests.append({
+            'addConditionalFormatRule': {
+                'rule': {
+                    'ranges': [prog_value_range],
+                    'booleanRule': {
+                        'condition': {
+                            'type': 'TEXT_CONTAINS',
+                            'values': [{'userEnteredValue': '+'}],
+                        },
+                        'format': {
+                            'backgroundColor': _color(*CLR_POSITIVE),
+                            'textFormat': {
+                                'bold': True,
+                                'foregroundColor': _color(*CLR_POSITIVE_FG),
+                            },
+                        },
+                    },
+                },
+                'index': 0,
+            }
+        })
+        cf_requests.append({
+            'addConditionalFormatRule': {
+                'rule': {
+                    'ranges': [prog_value_range],
+                    'booleanRule': {
+                        'condition': {
+                            'type': 'TEXT_CONTAINS',
+                            'values': [{'userEnteredValue': '-%'}],
                         },
                         'format': {
                             'backgroundColor': _color(*CLR_NEGATIVE),

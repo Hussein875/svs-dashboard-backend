@@ -1012,12 +1012,10 @@ def main():
             rb_count=rb_count
         )
         update_wochen_stat(sheets_service, max_nummer)
-        from wochenstat_auswertung import update_wochenstat_auswertung
-        auswertung_weeks = update_wochenstat_auswertung(sheets_service)
         print(
             f"📊 Heute importiert: {imports_today} | Offen: {len(filtered_rows) + len(neue_nummern)} | "
             f"RB offen: {rb_count} | Sync: {'OK' if sync_ok else 'Offen'} | "
-            f"KW {kw}/{year}: {max_nummer} | Auswertung: {auswertung_weeks} KW"
+            f"KW {kw}/{year}: {max_nummer}"
         )
     except HttpError as exc:
         print(f'⚠️ Statistik konnte nicht aktualisiert werden: {exc}', file=sys.stderr)

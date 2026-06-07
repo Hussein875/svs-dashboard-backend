@@ -1,0 +1,12 @@
+services:
+  svs-cron:
+    build:
+      context: ../..
+      dockerfile: deploy/svs-cron/Dockerfile
+    container_name: svs-cron
+    restart: unless-stopped
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/google-sa.json
+      TZ: Europe/Berlin
+    volumes:
+      - /opt/secrets/google-sa.json:/secrets/google-sa.json:ro
