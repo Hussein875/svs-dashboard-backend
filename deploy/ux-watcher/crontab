@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+TZ=Europe/Berlin
+
+# 2 Min versetzt zum Import (*/5 auf svs-cron)
+2-57/5 * * * * root /app/run-watcher.sh >> /proc/1/fd/1 2>&1

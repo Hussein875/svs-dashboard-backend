@@ -13,6 +13,7 @@ from import_gutachten_to_sheet import (
     get_sheet_id,
     is_wochen_section_row,
     is_wochen_summary_row,
+    local_now,
     normalize_number,
     normalize_wochen_stat_row,
     read_all_wochenstat,
@@ -109,7 +110,7 @@ def parse_wochen_rows(rows):
 
 def year_is_complete(parsed, year, *, generated_at=None):
     """Jahr gilt als abgeschlossen, wenn alle ISO-KW erfasst sind."""
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or local_now()
     if year < generated_at.year:
         return True
     year_rows = sorted(kw for y, kw, _ in parsed if y == year)
@@ -127,7 +128,7 @@ def _weakest_week(weeks):
 
 def year_stats(parsed, jahressummen=None, *, generated_at=None):
     jahressummen = jahressummen or {}
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or local_now()
     by_year = defaultdict(list)
     for year, kw, anzahl in parsed:
         by_year[year].append((kw, anzahl))
@@ -220,7 +221,7 @@ def iso_weeks_in_year(year):
 
 def compute_year_forecast(parsed, year_summary, year, *, generated_at=None):
     """Jahresend-Prognose für ein laufendes Jahr (lineare Hochrechnung)."""
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or local_now()
     if year not in year_summary:
         return None
 
@@ -358,7 +359,7 @@ def compute_insights(parsed, year_summary, current_year):
 
 
 def build_sheet_values(parsed, *, generated_at=None, jahressummen=None):
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or local_now()
     current_year = generated_at.year
     year_summary = year_stats(parsed, jahressummen, generated_at=generated_at)
 
@@ -538,7 +539,7 @@ def format_auswertung_tab(sheets_service, total_rows, meta):
 
     _clear_sheet_layout(sheets_service, sheet_id)
 
-    current_year = meta.get('current_year', datetime.now().year)
+    current_year = meta.get('current_year', local_now().year)
     kpi_header_row = meta['kpi_header_row']
     kpi_data_start = meta['kpi_data_start']
     kpi_data_end = kpi_data_start + meta['kpi_rows']

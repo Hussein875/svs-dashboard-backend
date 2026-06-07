@@ -2,6 +2,7 @@ import re
 import sys
 from os import path, getenv
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -25,9 +26,17 @@ WOCHEN_STAT_AUSWERTUNG_TAB = getenv('SHEET_WOCHEN_STAT_AUSWERTUNG_TAB', 'WochenS
 FOLDER_ID = getenv('DRIVE_FOLDER_ID', '1FVnM3Y_ktIvXMUPuAQTpJ-sMB5yI1gYf')
 RB_FOLDER_ID = getenv('DRIVE_RB_FOLDER_ID', '1Lpzu-pK94B2asLbbUgzAaOxZ3oj_DrnR')
 INCLUDE_ALL_DRIVES = getenv('DRIVE_INCLUDE_ALL_DRIVES', '1').strip().lower() not in ('0', 'false', 'no')
+LOCAL_TIMEZONE = getenv('LOCAL_TIMEZONE', 'Europe/Berlin')
 
-current_year = str(datetime.now().year % 100).zfill(2)
-previous_year = str((datetime.now().year - 1) % 100).zfill(2)
+
+def local_now():
+    """Lokale Zeit (Standard: Europe/Berlin) — unabhängig von Container-UTC."""
+    return datetime.now(ZoneInfo(LOCAL_TIMEZONE))
+
+
+_now = local_now()
+current_year = str(_now.year % 100).zfill(2)
+previous_year = str((_now.year - 1) % 100).zfill(2)
 AKTE_REGEX = re.compile(r'(\d{3,5})\s*[/_:\-]\s*(\d{2})')
 COMPACT_AKTE_REGEX = re.compile(r'\b(\d{8})\b')
 
@@ -273,7 +282,7 @@ def append_import_log(sheets_service, nummern):
 
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
-    now = datetime.now()
+    now = local_now()
     rows = [[now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), nummer] for nummer in nummern]
     # Kein INSERT_ROWS: würde ganze Tabellenzeilen einfügen und H:J mit nach unten schieben.
     sheets_service.spreadsheets().values().append(
@@ -287,7 +296,7 @@ def append_import_log(sheets_service, nummern):
 def record_import_run(sheets_service):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
-    now = datetime.now()
+    now = local_now()
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range=f'{STATISTIK_TAB}!F1',
@@ -333,7 +342,7 @@ def update_tages_stat(sheets_service, sync_ok, rb_count=0):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
 
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = local_now().strftime('%Y-%m-%d')
     sync_label = 'OK' if sync_ok else 'Offen'
 
     rows = [
@@ -367,7 +376,7 @@ def update_tages_stat(sheets_service, sync_ok, rb_count=0):
 
 
 def iso_year_week(dt=None):
-    dt = dt or datetime.now()
+    dt = dt or local_now()
     iso = dt.isocalendar()
     return iso[0], iso[1]
 
@@ -386,7 +395,7 @@ def get_max_akten_nummer(rows, extra_nummern=None):
 
 
 def current_calendar_year():
-    return str(datetime.now().year)
+    return str(local_now().year)
 
 
 def wochen_row_year(row):
@@ -874,7 +883,7 @@ def update_wochen_stat(sheets_service, max_nummer):
         return
 
     year, kw = iso_year_week()
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = local_now().strftime('%Y-%m-%d')
     calendar_year = current_calendar_year()
 
     data_rows, trailing = read_wochenstat_tab_with_trailing(sheets_service, WOCHEN_STAT_TAB)
@@ -989,7 +998,7 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     log_rows = read_import_log_rows(sheets_service)
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = local_now().strftime('%Y-%m-%d')
     imports_today = count_imports_for_date(log_rows, today)
     sheet_numbers = {normalize_number(row[0]) for row in filtered_rows if row}
     sheet_numbers.update(normalize_number(nummer) for nummer in neue_nummern)

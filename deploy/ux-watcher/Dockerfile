@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/playwright:v1.54.0-jammy
+
+WORKDIR /app
+
+COPY code/UX-Watcher/package.json code/UX-Watcher/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY code/UX-Watcher/watcher.js code/UX-Watcher/google.js ./
+COPY deploy/ux-watcher/run-watcher.sh /app/run-watcher.sh
+COPY deploy/ux-watcher/crontab /etc/cron.d/ux-watcher
+
+RUN chmod 0644 /etc/cron.d/ux-watcher \
+    && chmod 0755 /app/run-watcher.sh \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends cron tzdata \
+    && ln -snf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
+    && echo Europe/Berlin > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+ENV TZ=Europe/Berlin
+
+CMD ["cron", "-f"]
