@@ -1,3 +1,0 @@
-# Europe/Berlin — in docker-compose als CRON_TZ setzen
-*/5 * * * * cd /app && python3 import_gutachten_to_sheet.py >> /var/log/svs-import.log 2>&1
-0 0 * * * cd /app && python3 wochenstat_auswertung.py >> /var/log/svs-auswertung.log 2>&1
