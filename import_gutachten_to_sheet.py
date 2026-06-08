@@ -888,7 +888,6 @@ def update_wochen_stat(sheets_service, max_nummer):
 
     data_rows, trailing = read_wochenstat_tab_with_trailing(sheets_service, WOCHEN_STAT_TAB)
     pruned = [row for row in data_rows if wochen_row_year(row) == calendar_year]
-    removed_stale = len(pruned) != len(data_rows)
 
     existing_kw = next(
         (
@@ -899,10 +898,8 @@ def update_wochen_stat(sheets_service, max_nummer):
     )
 
     if existing_kw is not None:
-        if WOCHEN_STAT_MANUAL:
-            if removed_stale:
-                write_wochenstat_preserve(sheets_service, pruned, trailing)
-            return
+        # Aktuelle KW immer aus Drive/Dashboard aktualisieren; WOCHEN_STAT_MANUAL
+        # schützt nur ältere KW-Zeilen (merge_wochenstat_current_rows).
 
         row = list(existing_kw)
         while len(row) < 6:
