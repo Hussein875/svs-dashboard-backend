@@ -143,8 +143,29 @@ def count_rb_folders(drive_service):
     return count
 
 
-def find_new_entries(dateien, filtered_rows):
-    vorhandene = {normalize_number(row[0]) for row in filtered_rows if row}
+def import_numbers_for_date(log_rows, date_str):
+    seen = set()
+    for row in log_rows:
+        if len(row) < 3 or str(row[0]).strip() != date_str:
+            continue
+        nummer = normalize_number(row[2])
+        if nummer:
+            seen.add(nummer)
+    return seen
+
+
+def find_new_entries(dateien, filtered_rows, skip_numbers=None):
+    vorhandene = {
+        normalize_number(row[0])
+        for row in filtered_rows
+        if row and normalize_number(row[0])
+    }
+    if skip_numbers:
+        vorhandene |= {
+            normalize_number(nummer)
+            for nummer in skip_numbers
+            if normalize_number(nummer)
+        }
     neue_nummern = []
     gesehen = set(vorhandene)
 
@@ -283,7 +304,19 @@ def append_import_log(sheets_service, nummern):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
     now = local_now()
-    rows = [[now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), nummer] for nummer in nummern]
+    today = now.strftime('%Y-%m-%d')
+    logged_today = import_numbers_for_date(
+        read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:C'),
+        today,
+    )
+    to_log = [
+        nummer for nummer in nummern
+        if normalize_number(nummer) not in logged_today
+    ]
+    if not to_log:
+        return
+
+    rows = [[today, now.strftime('%H:%M:%S'), nummer] for nummer in to_log]
     # Kein INSERT_ROWS: würde ganze Tabellenzeilen einfügen und H:J mit nach unten schieben.
     sheets_service.spreadsheets().values().append(
         spreadsheetId=SPREADSHEET_ID,
@@ -312,14 +345,7 @@ def read_import_log_rows(sheets_service):
 
 
 def count_imports_for_date(log_rows, date_str):
-    seen = set()
-    for row in log_rows:
-        if len(row) < 3 or row[0] != date_str:
-            continue
-        nummer = normalize_number(row[2])
-        if nummer:
-            seen.add(nummer)
-    return len(seen)
+    return len(import_numbers_for_date(log_rows, date_str))
 
 
 def normalize_tages_stat_row(row):
@@ -975,7 +1001,10 @@ def main():
         print('❌ Prüfe, ob der Service-Account Zugriff auf den Ordner hat.', file=sys.stderr)
         return 1
     print(f"ℹ️ Dateien im Drive-Ordner gefunden: {len(dateien)}")
-    neue_nummern = find_new_entries(dateien, filtered_rows)
+    log_rows = read_import_log_rows(sheets_service)
+    today = local_now().strftime('%Y-%m-%d')
+    logged_today = import_numbers_for_date(log_rows, today)
+    neue_nummern = find_new_entries(dateien, filtered_rows, skip_numbers=logged_today)
 
     # 6. Neue Einträge gezielt in Spalte A schreiben
     startzeile = len(filtered_rows) + 2
@@ -995,7 +1024,6 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     log_rows = read_import_log_rows(sheets_service)
-    today = local_now().strftime('%Y-%m-%d')
     imports_today = count_imports_for_date(log_rows, today)
     sheet_numbers = {normalize_number(row[0]) for row in filtered_rows if row}
     sheet_numbers.update(normalize_number(nummer) for nummer in neue_nummern)
