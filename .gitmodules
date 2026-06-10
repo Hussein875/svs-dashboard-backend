@@ -1,0 +1,6 @@
+[submodule "code/SVS-Dashboard"]
+	path = code/SVS-Dashboard
+	url = https://github.com/Hussein875/svs-dashboard.git
+[submodule "code/UX-Watcher"]
+	path = code/UX-Watcher
+	url = https://github.com/Hussein875/ux-watcher.git
