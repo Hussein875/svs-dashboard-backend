@@ -14,6 +14,9 @@ SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/a
 SPREADSHEET_ID = getenv('SHEET_ID', '10mfm9SVVDiWcxnfK2QuUCj3msaVFBQIQx34NnPlUEo4')
 TAB_NAME = getenv('SHEET_TAB_NAME', 'Dashboard')
 STATISTIK_TAB = getenv('SHEET_STATISTIK_TAB', 'Statistik')
+SYNC_COLUMN_LABEL = 'Abgleich'
+SYNC_STATUS_OK = 'OK'
+SYNC_STATUS_MISSING = 'NO'
 LEGACY_IMPORT_LOG_TAB = getenv('SHEET_IMPORT_LOG_TAB', 'ImportLog')
 LEGACY_TAGES_STAT_TAB = getenv('SHEET_TAGES_STAT_TAB', 'TagesStat')
 WOCHEN_STAT_TAB = getenv('SHEET_WOCHEN_STAT_TAB', 'WochenStat')
@@ -260,7 +263,7 @@ def ensure_statistik_tab(sheets_service):
         body={'valueInputOption': 'RAW', 'data': [
             {'range': f'{STATISTIK_TAB}!A1:C1', 'values': [['Datum', 'Uhrzeit', 'Aktennummer']]},
             {'range': f'{STATISTIK_TAB}!E1', 'values': [['Letzter_Lauf']]},
-            {'range': f'{STATISTIK_TAB}!H1:J1', 'values': [['Datum', 'Sync', 'RB_Offene']]},
+            {'range': f'{STATISTIK_TAB}!H1:J1', 'values': [['Datum', SYNC_COLUMN_LABEL, 'RB_Offene']]},
         ]}
     ).execute()
 
@@ -369,7 +372,7 @@ def update_tages_stat(sheets_service, sync_ok, rb_count=0):
     migrate_statistik_data(sheets_service)
 
     today = local_now().strftime('%Y-%m-%d')
-    sync_label = 'OK' if sync_ok else 'Offen'
+    sync_label = SYNC_STATUS_OK if sync_ok else SYNC_STATUS_MISSING
 
     rows = [
         normalize_tages_stat_row(row)
@@ -1046,7 +1049,7 @@ def main():
         update_wochen_stat(sheets_service, max_nummer)
         print(
             f"📊 Heute importiert: {imports_today} | Offen: {len(filtered_rows) + len(neue_nummern)} | "
-            f"RB offen: {rb_count} | Sync: {'OK' if sync_ok else 'Offen'} | "
+            f"RB offen: {rb_count} | {SYNC_COLUMN_LABEL}: {SYNC_STATUS_OK if sync_ok else SYNC_STATUS_MISSING} | "
             f"KW {kw}/{year}: {max_nummer}"
         )
     except HttpError as exc:
