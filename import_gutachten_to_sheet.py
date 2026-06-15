@@ -1001,10 +1001,7 @@ def main():
         print('❌ Prüfe, ob der Service-Account Zugriff auf den Ordner hat.', file=sys.stderr)
         return 1
     print(f"ℹ️ Dateien im Drive-Ordner gefunden: {len(dateien)}")
-    log_rows = read_import_log_rows(sheets_service)
-    today = local_now().strftime('%Y-%m-%d')
-    logged_today = import_numbers_for_date(log_rows, today)
-    neue_nummern = find_new_entries(dateien, filtered_rows, skip_numbers=logged_today)
+    neue_nummern = find_new_entries(dateien, filtered_rows)
 
     # 6. Neue Einträge gezielt in Spalte A schreiben
     startzeile = len(filtered_rows) + 2
@@ -1024,6 +1021,7 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     log_rows = read_import_log_rows(sheets_service)
+    today = local_now().strftime('%Y-%m-%d')
     imports_today = count_imports_for_date(log_rows, today)
     sheet_numbers = {normalize_number(row[0]) for row in filtered_rows if row}
     sheet_numbers.update(normalize_number(nummer) for nummer in neue_nummern)

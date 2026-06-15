@@ -9,6 +9,9 @@ COPY code/UX-Watcher/watcher.js code/UX-Watcher/google.js ./
 COPY deploy/ux-watcher/run-watcher.sh /app/run-watcher.sh
 COPY deploy/ux-watcher/crontab /etc/cron.d/ux-watcher
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Berlin
+
 RUN chmod 0644 /etc/cron.d/ux-watcher \
     && chmod 0755 /app/run-watcher.sh \
     && apt-get update \
@@ -18,6 +21,7 @@ RUN chmod 0644 /etc/cron.d/ux-watcher \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
-ENV TZ=Europe/Berlin
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 CMD ["cron", "-f"]
