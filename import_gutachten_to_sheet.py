@@ -65,7 +65,11 @@ def parse_csv_tokens(raw_value, default_value):
 
 ACCEPTED_FOLDER_TERMS = parse_csv_tokens(
     getenv('AKTE_ACCEPTED_FOLDER_TERMS'),
-    'gutachten,beratungsleistungen,kva,kostenvoranschlag'
+    'gutachten,kva,kostenvoranschlag'
+)
+IGNORED_FOLDER_TERMS = parse_csv_tokens(
+    getenv('AKTE_IGNORED_FOLDER_TERMS'),
+    'beratungsleistungen'
 )
 IGNORED_PREFIXES = parse_csv_tokens(
     getenv('AKTE_IGNORED_PREFIXES'),
@@ -75,6 +79,11 @@ IGNORED_PREFIXES = parse_csv_tokens(
 
 def normalize_number(value):
     return re.sub(r'[^0-9]', '', str(value or ''))
+
+
+def has_ignored_folder_term(name):
+    lower_name = name.lower()
+    return any(term in lower_name for term in IGNORED_FOLDER_TERMS)
 
 
 def has_accepted_folder_term(name):
@@ -157,6 +166,40 @@ def import_numbers_for_date(log_rows, date_str):
     return seen
 
 
+def should_ignore_drive_folder(name):
+    name = name.strip()
+    if name.lower() == 'organisation':
+        return True
+    if has_ignored_prefix(name):
+        return True
+    if has_ignored_folder_term(name):
+        return True
+    return False
+
+
+def classify_drive_numbers(dateien):
+    accepted = set()
+    ignored_only = set()
+
+    for file in dateien:
+        name = file.get('name', '').strip()
+        nummer, jahr = extract_number_and_year(name)
+        if not nummer or jahr not in ALLOWED_YEARS:
+            continue
+        if should_ignore_drive_folder(name):
+            if has_ignored_folder_term(name):
+                ignored_only.add(nummer)
+            continue
+        if has_accepted_folder_term(name):
+            accepted.add(nummer)
+
+    return accepted, ignored_only
+
+
+def dashboard_numbers_to_remove(accepted, ignored_only):
+    return ignored_only - accepted
+
+
 def find_new_entries(dateien, filtered_rows, skip_numbers=None):
     vorhandene = {
         normalize_number(row[0])
@@ -178,8 +221,13 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
         if name.lower() == 'organisation':
             print(f'⏭️ Übersprungen (Organisation): {name}')
             continue
-        if has_ignored_prefix(name):
-            print(f'⏭️ Übersprungen (Prefix ignoriert): {name}')
+        if should_ignore_drive_folder(name):
+            if has_ignored_folder_term(name):
+                print(f'⏭️ Übersprungen (Beratungsleistungen): {name}')
+            elif has_ignored_prefix(name):
+                print(f'⏭️ Übersprungen (Prefix ignoriert): {name}')
+            else:
+                print(f'⏭️ Übersprungen (ignoriert): {name}')
             continue
         if not has_accepted_folder_term(name):
             print(f'⏭️ Übersprungen (kein erlaubter Ordnertyp): {name}')
@@ -205,9 +253,7 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
 
 def is_valid_drive_entry(name):
     name = name.strip()
-    if name.lower() == 'organisation':
-        return False
-    if has_ignored_prefix(name):
+    if should_ignore_drive_folder(name):
         return False
     if not has_accepted_folder_term(name):
         return False
@@ -972,17 +1018,41 @@ def main():
     if not rows:
         rows = []
 
-    # 2. Alle Zeilen mit Status 'versendet' aussortieren
+    # 2. Drive-Ordner lesen (für Filter + neue Einträge)
+    print(f"ℹ️ Drive-Folder-ID: {FOLDER_ID}")
+    print(f"ℹ️ Erlaubte Jahre: {', '.join(sorted(ALLOWED_YEARS))}")
+    print(f"ℹ️ Erlaubte Ordnerarten: {', '.join(ACCEPTED_FOLDER_TERMS)}")
+    print(f"ℹ️ Ignorierte Ordnerarten: {', '.join(IGNORED_FOLDER_TERMS)}")
+    try:
+        dateien = list_drive_files(drive_service)
+    except HttpError as exc:
+        print(f'❌ Drive-Abfrage fehlgeschlagen: {exc}', file=sys.stderr)
+        print('❌ Prüfe, ob der Service-Account Zugriff auf den Ordner hat.', file=sys.stderr)
+        return 1
+    print(f"ℹ️ Dateien im Drive-Ordner gefunden: {len(dateien)}")
+
+    accepted_drive_numbers, ignored_drive_numbers = classify_drive_numbers(dateien)
+    remove_numbers = dashboard_numbers_to_remove(accepted_drive_numbers, ignored_drive_numbers)
+
+    # 3. Versendete und reine Beratungsleistungen aussortieren
     filtered_rows = []
+    removed_bl = 0
+    removed_versendet = 0
     for row in rows:
         status = row[2].strip().lower() if len(row) > 2 else ''
-        if not status.startswith('versendet'):
-            filtered_rows.append(row)
+        nummer = normalize_number(row[0]) if row else ''
+        if status.startswith('versendet'):
+            removed_versendet += 1
+            continue
+        if nummer and nummer in remove_numbers:
+            removed_bl += 1
+            continue
+        filtered_rows.append(row)
 
-    # 3. Alte Daten löschen
+    # 4. Alte Daten löschen
     sheet.values().clear(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!A2:C').execute()
 
-    # 4. Gefilterte Daten zurückschreiben
+    # 5. Gefilterte Daten zurückschreiben
     if filtered_rows:
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
@@ -991,22 +1061,14 @@ def main():
             body={'values': filtered_rows}
         ).execute()
 
-    print(f"✅ {len(rows) - len(filtered_rows)} versendete Zeilen gelöscht.")
+    print(f"✅ {removed_versendet} versendete Zeilen gelöscht.")
+    if removed_bl:
+        print(f"✅ {removed_bl} Beratungsleistungen-Akten aus dem Dashboard entfernt.")
 
-    # 5. Neue Einträge aus Google Drive abrufen
-    print(f"ℹ️ Drive-Folder-ID: {FOLDER_ID}")
-    print(f"ℹ️ Erlaubte Jahre: {', '.join(sorted(ALLOWED_YEARS))}")
-    print(f"ℹ️ Erlaubte Ordnerarten: {', '.join(ACCEPTED_FOLDER_TERMS)}")
-    try:
-        dateien = list_drive_files(drive_service)
-    except HttpError as exc:
-        print(f'❌ Drive-Abfrage fehlgeschlagen: {exc}', file=sys.stderr)
-        print('❌ Prüfe, ob der Service-Account Zugriff auf den Ordner hat.', file=sys.stderr)
-        return 1
-    print(f"ℹ️ Dateien im Drive-Ordner gefunden: {len(dateien)}")
+    # 6. Neue Einträge aus Google Drive abrufen
     neue_nummern = find_new_entries(dateien, filtered_rows)
 
-    # 6. Neue Einträge gezielt in Spalte A schreiben
+    # 7. Neue Einträge gezielt in Spalte A schreiben
     startzeile = len(filtered_rows) + 2
     if neue_nummern:
         values = [[nummer] for nummer in neue_nummern]
