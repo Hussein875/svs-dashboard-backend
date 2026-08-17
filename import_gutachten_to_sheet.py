@@ -77,6 +77,24 @@ IGNORED_PREFIXES = parse_csv_tokens(
     'rb'
 )
 
+UPLOADER_ALIASES = {
+    'hassankhodr978': 'Hassan',
+    'svs-app-864ed': 'SVS App',
+    'dashboard-bot@ux-dashboard-465511.iam.gserviceaccount.com': 'Bot',
+}
+
+
+def resolve_drive_uploader(file_item):
+    user = file_item.get('lastModifyingUser') or {}
+    display = str(user.get('displayName') or '').strip()
+    if not display:
+        owners = file_item.get('owners') or []
+        if owners:
+            display = str(owners[0].get('displayName') or owners[0].get('emailAddress') or '').strip()
+    if not display:
+        return 'Unbekannt'
+    return UPLOADER_ALIASES.get(display.lower(), display)
+
 
 def normalize_number(value):
     return re.sub(r'[^0-9]', '', str(value or ''))
@@ -121,7 +139,7 @@ def list_drive_files(drive_service, folder_id=None, folders_only=False):
     while True:
         request = drive_service.files().list(
             q=' and '.join(query_parts),
-            fields='nextPageToken, files(name, mimeType)',
+            fields='nextPageToken, files(name, mimeType, lastModifyingUser, owners, createdTime)',
             pageSize=200,
             pageToken=page_token,
             includeItemsFromAllDrives=INCLUDE_ALL_DRIVES,
@@ -266,7 +284,10 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
             continue
 
         gesehen.add(nummer)
-        neue_nummern.append(nummer)
+        neue_nummern.append({
+            'nummer': nummer,
+            'uploader': resolve_drive_uploader(file),
+        })
 
     return neue_nummern
 
@@ -323,15 +344,16 @@ def read_sheet_values(sheets_service, tab, cell_range):
 
 
 def ensure_statistik_tab(sheets_service):
-    ensure_tab(sheets_service, STATISTIK_TAB, ['Datum', 'Uhrzeit', 'Aktennummer'])
+    ensure_tab(sheets_service, STATISTIK_TAB, ['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von'])
     sheets_service.spreadsheets().values().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={'valueInputOption': 'RAW', 'data': [
-            {'range': f'{STATISTIK_TAB}!A1:C1', 'values': [['Datum', 'Uhrzeit', 'Aktennummer']]},
+            {'range': f'{STATISTIK_TAB}!A1:D1', 'values': [['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von']]},
             {'range': f'{STATISTIK_TAB}!E1', 'values': [['Letzter_Lauf']]},
-            {'range': f'{STATISTIK_TAB}!H1:J1', 'values': [['Datum', SYNC_COLUMN_LABEL, 'RB_Offene']]},
+            {'range': f'{STATISTIK_TAB}!H1:K1', 'values': [['Datum', SYNC_COLUMN_LABEL, 'RB_Offene', 'Stargutachter']]},
         ]}
     ).execute()
+    compact_import_log(sheets_service)
 
 
 def migrate_statistik_data(sheets_service):
@@ -366,30 +388,89 @@ def migrate_statistik_data(sheets_service):
         ).execute()
 
 
-def append_import_log(sheets_service, nummern):
-    if not nummern:
+def import_numbers_ever_logged(log_rows):
+    seen = set()
+    for row in log_rows:
+        if len(row) < 3:
+            continue
+        nummer = normalize_number(row[2])
+        if nummer:
+            seen.add(nummer)
+    return seen
+
+
+def compact_import_log(sheets_service):
+    rows = read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D')
+    if not rows:
+        return 0
+
+    seen = set()
+    compacted = []
+    for row in rows:
+        normalized = list(row)
+        while len(normalized) < 4:
+            normalized.append('')
+        nummer = normalize_number(normalized[2])
+        if not nummer or nummer in seen:
+            continue
+        seen.add(nummer)
+        compacted.append(normalized[:4])
+
+    if len(compacted) == len(rows):
+        return 0
+
+    sheets_service.spreadsheets().values().clear(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{STATISTIK_TAB}!A2:D',
+    ).execute()
+    if compacted:
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f'{STATISTIK_TAB}!A2',
+            valueInputOption='RAW',
+            body={'values': compacted},
+        ).execute()
+
+    removed = len(rows) - len(compacted)
+    print(f'ℹ️ Import-Log bereinigt: {removed} doppelte Aktennummern entfernt.')
+    return removed
+
+
+def append_import_log(sheets_service, entries):
+    if not entries:
         return
 
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
     now = local_now()
     today = now.strftime('%Y-%m-%d')
-    logged_today = import_numbers_for_date(
-        read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:C'),
-        today,
+    logged_ever = import_numbers_ever_logged(
+        read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D'),
     )
-    to_log = [
-        nummer for nummer in nummern
-        if normalize_number(nummer) not in logged_today
-    ]
+    to_log = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            nummer = str(entry.get('nummer') or '').strip()
+            uploader = str(entry.get('uploader') or '').strip()
+        else:
+            nummer = str(entry or '').strip()
+            uploader = ''
+        normalized = normalize_number(nummer)
+        if not normalized or normalized in logged_ever:
+            continue
+        logged_ever.add(normalized)
+        to_log.append({'nummer': nummer, 'uploader': uploader})
+
     if not to_log:
         return
 
-    rows = [[today, now.strftime('%H:%M:%S'), nummer] for nummer in to_log]
-    # Kein INSERT_ROWS: würde ganze Tabellenzeilen einfügen und H:J mit nach unten schieben.
+    rows = [
+        [today, now.strftime('%H:%M:%S'), entry['nummer'], entry.get('uploader', '')]
+        for entry in to_log
+    ]
     sheets_service.spreadsheets().values().append(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{STATISTIK_TAB}!A:C',
+        range=f'{STATISTIK_TAB}!A:D',
         valueInputOption='RAW',
         body={'values': rows}
     ).execute()
@@ -410,7 +491,7 @@ def record_import_run(sheets_service):
 def read_import_log_rows(sheets_service):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
-    return read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:C')
+    return read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D')
 
 
 def count_imports_for_date(log_rows, date_str):
@@ -1087,22 +1168,26 @@ def main():
         print(f"✅ {removed_bl} Beratungsleistungen-Akten aus dem Dashboard entfernt.")
 
     # 6. Neue Einträge aus Google Drive abrufen
-    neue_nummern = find_new_entries(dateien, filtered_rows)
+    neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge gezielt in Spalte A schreiben
+    # 7. Neue Einträge in Spalte A (+ Uploader in D) schreiben
     startzeile = len(filtered_rows) + 2
-    if neue_nummern:
-        values = [[nummer] for nummer in neue_nummern]
+    if neue_eintraege:
+        values = [
+            [entry['nummer'], '', '', entry.get('uploader', '')]
+            for entry in neue_eintraege
+        ]
+        endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:D{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
-        append_import_log(sheets_service, neue_nummern)
+        append_import_log(sheets_service, neue_eintraege)
 
-    if neue_nummern:
-        print(f"✅ {len(neue_nummern)} neue Einträge eingetragen.")
+    if neue_eintraege:
+        print(f"✅ {len(neue_eintraege)} neue Einträge eingetragen.")
     else:
         print("✅ Keine neuen Einträge eingetragen.")
 
@@ -1110,7 +1195,7 @@ def main():
     today = local_now().strftime('%Y-%m-%d')
     imports_today = count_imports_for_date(log_rows, today)
     sheet_numbers = {normalize_number(row[0]) for row in filtered_rows if row}
-    sheet_numbers.update(normalize_number(nummer) for nummer in neue_nummern)
+    sheet_numbers.update(normalize_number(entry['nummer']) for entry in neue_eintraege)
     drive_numbers = set()
     for file in dateien:
         if not is_valid_drive_entry(file['name']):
@@ -1121,7 +1206,10 @@ def main():
     sync_ok = drive_numbers.issubset(sheet_numbers)
     rb_count = count_rb_folders(drive_service)
     starg_count = count_stargutachter_folders(drive_service)
-    max_nummer = get_max_akten_nummer(filtered_rows, neue_nummern)
+    max_nummer = get_max_akten_nummer(
+        filtered_rows,
+        [entry['nummer'] for entry in neue_eintraege],
+    )
     year, kw = iso_year_week()
 
     try:
@@ -1133,7 +1221,7 @@ def main():
         )
         update_wochen_stat(sheets_service, max_nummer)
         print(
-            f"📊 Heute importiert: {imports_today} | Offen: {len(filtered_rows) + len(neue_nummern)} | "
+            f"📊 Heute importiert: {imports_today} | Offen: {len(filtered_rows) + len(neue_eintraege)} | "
             f"RB offen: {rb_count} | Stargutachter: {starg_count} | {SYNC_COLUMN_LABEL}: {SYNC_STATUS_OK if sync_ok else SYNC_STATUS_MISSING} | "
             f"KW {kw}/{year}: {max_nummer}"
         )
