@@ -28,6 +28,7 @@ WOCHEN_STAT_MANUAL = getenv('WOCHEN_STAT_MANUAL', '1').strip().lower() not in ('
 WOCHEN_STAT_AUSWERTUNG_TAB = getenv('SHEET_WOCHEN_STAT_AUSWERTUNG_TAB', 'WochenStat_Auswertung')
 FOLDER_ID = getenv('DRIVE_FOLDER_ID', '1FVnM3Y_ktIvXMUPuAQTpJ-sMB5yI1gYf')
 RB_FOLDER_ID = getenv('DRIVE_RB_FOLDER_ID', '1Lpzu-pK94B2asLbbUgzAaOxZ3oj_DrnR')
+STARGUTACHTER_FOLDER_ID = getenv('DRIVE_STARGUTACHTER_FOLDER_ID', '1iCPDjsJeVlIudPJ_acwOYvwmmZ5C02rX')
 INCLUDE_ALL_DRIVES = getenv('DRIVE_INCLUDE_ALL_DRIVES', '1').strip().lower() not in ('0', 'false', 'no')
 LOCAL_TIMEZONE = getenv('LOCAL_TIMEZONE', 'Europe/Berlin')
 
@@ -144,6 +145,25 @@ def count_rb_folders(drive_service):
         items = list_drive_files(drive_service, RB_FOLDER_ID, folders_only=True)
     except HttpError as exc:
         print(f'⚠️ RB-Ordner konnte nicht gelesen werden: {exc}', file=sys.stderr)
+        return 0
+
+    count = 0
+    for item in items:
+        name = item.get('name', '').strip()
+        if not name or name.lower() == 'organisation':
+            continue
+        count += 1
+    return count
+
+
+def count_stargutachter_folders(drive_service):
+    if not STARGUTACHTER_FOLDER_ID:
+        return 0
+
+    try:
+        items = list_drive_files(drive_service, STARGUTACHTER_FOLDER_ID, folders_only=True)
+    except HttpError as exc:
+        print(f'⚠️ Stargutachter-Ordner konnte nicht gelesen werden: {exc}', file=sys.stderr)
         return 0
 
     count = 0
@@ -402,18 +422,18 @@ def normalize_tages_stat_row(row):
         return row
     # Altes Format: Datum, Neu, Offen_Tagesstart, Drive_Ordner, Sync, RB_Offene
     if len(row) >= 6:
-        return [row[0], row[4], row[5]]
+        return [row[0], row[4], row[5], row[6] if len(row) > 6 else '']
     # Vorheriges Format: Datum, Neu, Offen_Tagesstart, Sync, RB_Offene
     if len(row) >= 5:
-        return [row[0], row[3], row[4]]
-    if len(row) == 3:
-        return row
+        return [row[0], row[3], row[4], row[5] if len(row) > 5 else '']
     if len(row) == 4:
-        return [row[0], row[2], row[3] if len(row) > 3 else '']
+        return [row[0], row[1], row[2], row[3]]
+    if len(row) == 3:
+        return [row[0], row[1], row[2], '']
     return row
 
 
-def update_tages_stat(sheets_service, sync_ok, rb_count=0):
+def update_tages_stat(sheets_service, sync_ok, rb_count=0, starg_count=0):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
 
@@ -422,24 +442,25 @@ def update_tages_stat(sheets_service, sync_ok, rb_count=0):
 
     rows = [
         normalize_tages_stat_row(row)
-        for row in read_sheet_values(sheets_service, STATISTIK_TAB, 'H2:J')
+        for row in read_sheet_values(sheets_service, STATISTIK_TAB, 'H2:K')
     ]
     rows = [row for row in rows if row and re.match(r'^\d{4}-\d{2}-\d{2}$', str(row[0]).strip())]
 
     today_idx = next((i for i, row in enumerate(rows) if row and row[0] == today), None)
     if today_idx is None:
-        rows.append([today, sync_label, str(rb_count)])
+        rows.append([today, sync_label, str(rb_count), str(starg_count)])
     else:
         row = list(rows[today_idx])
-        while len(row) < 3:
+        while len(row) < 4:
             row.append('')
         row[1] = sync_label
         row[2] = str(rb_count)
+        row[3] = str(starg_count)
         rows[today_idx] = row
 
     sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{STATISTIK_TAB}!H2:J'
+        range=f'{STATISTIK_TAB}!H2:K'
     ).execute()
     if rows:
         sheets_service.spreadsheets().values().update(
@@ -1099,6 +1120,7 @@ def main():
             drive_numbers.add(nummer)
     sync_ok = drive_numbers.issubset(sheet_numbers)
     rb_count = count_rb_folders(drive_service)
+    starg_count = count_stargutachter_folders(drive_service)
     max_nummer = get_max_akten_nummer(filtered_rows, neue_nummern)
     year, kw = iso_year_week()
 
@@ -1106,12 +1128,13 @@ def main():
         update_tages_stat(
             sheets_service,
             sync_ok=sync_ok,
-            rb_count=rb_count
+            rb_count=rb_count,
+            starg_count=starg_count
         )
         update_wochen_stat(sheets_service, max_nummer)
         print(
             f"📊 Heute importiert: {imports_today} | Offen: {len(filtered_rows) + len(neue_nummern)} | "
-            f"RB offen: {rb_count} | {SYNC_COLUMN_LABEL}: {SYNC_STATUS_OK if sync_ok else SYNC_STATUS_MISSING} | "
+            f"RB offen: {rb_count} | Stargutachter: {starg_count} | {SYNC_COLUMN_LABEL}: {SYNC_STATUS_OK if sync_ok else SYNC_STATUS_MISSING} | "
             f"KW {kw}/{year}: {max_nummer}"
         )
     except HttpError as exc:
