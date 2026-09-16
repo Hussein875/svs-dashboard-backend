@@ -150,14 +150,18 @@ def build_drive_shortcode_by_number(dateien):
 
 
 DASHBOARD_DATA_RANGE = 'A2:F'
-DASHBOARD_HEADERS = [
-    'Aktennummer',
-    'Bearbeiter',
-    'Status',
-    'Hochgeladen_von',
-    'Gutachten-Typ',
-    'Kürzel',
-]
+DASHBOARD_HEADER_LABELS = frozenset({
+    'aktennummer',
+    'bearbeiter',
+    'status',
+    'hochgeladen_von',
+    'gutachten-typ',
+    'gutachten_typ',
+    'kürzel',
+    'kurzel',
+    'eingang',
+    'nummer',
+})
 UX_SYNC_VALUES = {'pending', 'ok', 'error'}
 
 
@@ -175,6 +179,22 @@ def dashboard_row_status(row):
 
 def dashboard_row_for_sheet(row):
     return normalize_dashboard_row(row)
+
+
+def is_dashboard_header_row(row):
+    normalized = normalize_dashboard_row(row)
+    first = str(normalized[0] or '').strip().lower()
+    if not first:
+        return False
+    if first in DASHBOARD_HEADER_LABELS:
+        return True
+    if not normalize_number(normalized[0]):
+        return all(
+            str(normalized[idx] or '').strip().lower() in DASHBOARD_HEADER_LABELS
+            for idx in range(6)
+            if str(normalized[idx] or '').strip()
+        )
+    return False
 
 
 def compact_dashboard_row_from_legacy(row):
@@ -209,7 +229,11 @@ def migrate_dashboard_columns_compact(sheets_service):
     if not source_rows:
         return 0
 
-    compacted = [compact_dashboard_row_from_legacy(row) for row in source_rows]
+    compacted = [
+        compact_dashboard_row_from_legacy(row)
+        for row in source_rows
+        if not is_dashboard_header_row(row)
+    ]
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
@@ -1372,6 +1396,8 @@ def main():
     removed_bl = 0
     removed_versendet = 0
     for row in rows:
+        if is_dashboard_header_row(row):
+            continue
         status = dashboard_row_status(row)
         nummer = normalize_number(row[0]) if row else ''
         if status.startswith('versendet'):
