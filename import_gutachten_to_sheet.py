@@ -83,12 +83,51 @@ UPLOADER_ALIASES = {
     'dashboard-bot@ux-dashboard-465511.iam.gserviceaccount.com': 'Bot',
 }
 
-# Kürzel in Klammern am Ordnerende — nur RO/RA werden beim Import automatisch zugewiesen.
-# Weitere Kürzel (Referenz): HB=Hussein Selman, HU=Hussein Souleiman, DI=Diyar,
-# MZ=Mohamed Zahreddine, IZ=Izzedin, OS=Osama, HA=Hassan Souleiman, HK=Hassan Khodr, HJ=Hussein Jaber
+# Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
+# Referenz ohne Auto-Zuweisung: DI=Diyar, IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr
 AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
-    'RO': 'Robar Kassam',
-    'RA': 'Ramazan Dag',
+    'RO': 'Robar',
+    'RA': 'Ramazan',
+    'OS': 'Osama',
+    'HB': 'B',
+    'HU': 'HU',
+    'HJ': 'HJ',
+    'MZ': 'M',
+}
+
+SHEET_ASSIGNEE_ALIASES = {
+    'hadi': 'Hadi',
+    'hadi issa': 'Hadi',
+    'ramazan': 'Ramazan',
+    'ramazan dag': 'Ramazan',
+    'robar': 'Robar',
+    'robar kassem': 'Robar',
+    'robar kassam': 'Robar',
+    'osama': 'Osama',
+    'osama sleiman': 'Osama',
+    'osama souleiman': 'Osama',
+    'h': 'HJ',
+    'hj': 'HJ',
+    'hussein jaber': 'HJ',
+    'b': 'B',
+    'hussein selman': 'B',
+    'hu': 'HU',
+    'hussein souleiman': 'HU',
+    'hussein suleiman': 'HU',
+    'm': 'M',
+    'mohamed': 'M',
+    'mohamad': 'M',
+    'mohammed': 'M',
+    'muhammad': 'M',
+    'mohamed zahreddine': 'M',
+    'mohamad zahreddine': 'M',
+    'mohammed zahreddine': 'M',
+    'mohamed zahhredine': 'M',
+    'mohamad zahhredine': 'M',
+    'mohammed zahhredine': 'M',
+    'mohamed zahredine': 'M',
+    'mohamad zahredine': 'M',
+    'mohammed zahredine': 'M',
 }
 
 
@@ -163,19 +202,7 @@ DASHBOARD_HEADER_LABELS = frozenset({
     'nummer',
 })
 UX_SYNC_VALUES = {'pending', 'ok', 'error'}
-RECOGNIZED_SHEET_ASSIGNEES = frozenset({
-    'hadi', 'hadi issa',
-    'ramazan', 'ramazan dag',
-    'robar', 'robar kassem', 'robar kassam',
-    'osama', 'osama sleiman', 'osama souleiman',
-    'h', 'hj', 'hussein jaber',
-    'b', 'hussein selman',
-    'hu', 'hussein souleiman', 'hussein suleiman',
-    'm', 'mohamed', 'mohamad', 'mohammed', 'muhammad',
-    'mohamed zahreddine', 'mohamad zahreddine', 'mohammed zahreddine',
-    'mohamed zahhredine', 'mohamad zahhredine', 'mohammed zahhredine',
-    'mohamed zahredine', 'mohamad zahredine', 'mohammed zahredine',
-})
+RECOGNIZED_SHEET_ASSIGNEES = frozenset(SHEET_ASSIGNEE_ALIASES.keys())
 
 
 def normalize_dashboard_row(row):
@@ -263,17 +290,79 @@ def migrate_dashboard_columns_compact(sheets_service):
     return len(compacted)
 
 
+def normalize_worker_name(raw_value):
+    return re.sub(
+        r'^(?:herr|frau)\s+',
+        '',
+        str(raw_value or '').strip(),
+        flags=re.IGNORECASE,
+    ).strip().lower()
+
+
+def normalize_sheet_assignee(raw_value):
+    normalized = normalize_worker_name(raw_value)
+    if not normalized:
+        return ''
+    if normalized in SHEET_ASSIGNEE_ALIASES:
+        return SHEET_ASSIGNEE_ALIASES[normalized]
+    first_name = normalized.split(' ')[0]
+    if first_name in SHEET_ASSIGNEE_ALIASES:
+        return SHEET_ASSIGNEE_ALIASES[first_name]
+    if 'hussein' in normalized:
+        if re.search(r'\bselman\b', normalized):
+            return 'B'
+        if re.search(r'\b(souleiman|suleiman|sleiman)\b', normalized):
+            return 'HU'
+        if re.search(r'\bjaber\b', normalized):
+            return 'HJ'
+    if re.search(r'\b(zahreddine|zahhredine|zahredine|zaheredine)\b', normalized):
+        return 'M'
+    if re.search(r'\b(mohamed|mohamad|mohammed|muhammad)\b', normalized) and re.search(r'\b(zahh|zahr)', normalized):
+        return 'M'
+    return ''
+
+
 def is_recognized_sheet_assignee(value):
     normalized = str(value or '').strip().lower()
     if not normalized:
         return True
     if normalized in RECOGNIZED_SHEET_ASSIGNEES:
         return True
-    if 'hussein' in normalized or 'mohamed' in normalized or 'mohamad' in normalized or 'mohammed' in normalized:
-        return True
-    if 'zahreddine' in normalized or 'zahhredine' in normalized or 'zahredine' in normalized:
+    if normalize_sheet_assignee(value):
         return True
     return False
+
+
+def sync_sheet_assignees(sheets_service):
+    rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
+    if not rows:
+        return 0
+
+    updated = 0
+    cleaned = []
+    for row in rows:
+        normalized = dashboard_row_for_sheet(row)
+        current = str(normalized[1] or '').strip()
+        shortcode = str(normalized[5] or '').strip().upper()
+        next_assignee = normalize_sheet_assignee(current)
+        if not next_assignee and not current:
+            next_assignee = AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
+        if next_assignee != current:
+            updated += 1
+        normalized[1] = next_assignee
+        cleaned.append(normalized)
+
+    if not updated:
+        return 0
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
+        valueInputOption='RAW',
+        body={'values': cleaned},
+    ).execute()
+    print(f'ℹ️ Spalte B aktualisiert: {updated} Zeilen (Kürzel-Fallback + Normalisierung).')
+    return updated
 
 
 def sanitize_sheet_assignees(sheets_service):
@@ -1479,7 +1568,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (nur RO/RA), C=Status, D=Uploader, E=Typ, F=Kürzel
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (aus Kürzel), C=Status, D=Uploader, E=Typ, F=Kürzel
     ensure_dashboard_headers(sheets_service)
     startzeile = len(filtered_rows) + 2
     if neue_eintraege:
@@ -1515,6 +1604,7 @@ def main():
 
     try:
         ensure_dashboard_headers(sheets_service)
+        sync_sheet_assignees(sheets_service)
         wert_count = sync_gutachten_types(sheets_service, dateien)
         if wert_count:
             print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte E).")
