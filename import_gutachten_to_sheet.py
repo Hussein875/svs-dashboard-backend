@@ -149,11 +149,73 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
+DASHBOARD_DATA_RANGE = 'A2:H'
+DASHBOARD_STATUS_INDEX = 7
+
+
+def normalize_dashboard_row(row):
+    normalized = list(row or [])
+    while len(normalized) < 8:
+        normalized.append('')
+    return normalized[:8]
+
+
+def dashboard_row_status(row):
+    normalized = normalize_dashboard_row(row)
+    status = str(normalized[DASHBOARD_STATUS_INDEX] or '').strip()
+    if not status:
+        status = str(normalized[2] or '').strip()
+    return status.lower()
+
+
+def dashboard_row_for_sheet(row):
+    normalized = normalize_dashboard_row(row)
+    return [
+        normalized[0],
+        normalized[1],
+        '',
+        normalized[3],
+        normalized[4],
+        '',
+        normalized[6],
+        normalized[DASHBOARD_STATUS_INDEX],
+    ]
+
+
+def migrate_ux_status_to_column_h(sheets_service):
+    rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
+    if not rows:
+        return 0
+
+    migrated = 0
+    sheet_rows = []
+    for row in rows:
+        normalized = normalize_dashboard_row(row)
+        c_status = str(normalized[2] or '').strip()
+        h_status = str(normalized[DASHBOARD_STATUS_INDEX] or '').strip()
+        if c_status and not h_status:
+            normalized[DASHBOARD_STATUS_INDEX] = c_status
+            migrated += 1
+        normalized[2] = ''
+        normalized[5] = ''
+        sheet_rows.append(dashboard_row_for_sheet(normalized))
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
+        valueInputOption='RAW',
+        body={'values': sheet_rows},
+    ).execute()
+    return migrated
+
+
 def ensure_dashboard_headers(sheets_service):
     sheets_service.spreadsheets().values().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={'valueInputOption': 'RAW', 'data': [
             {'range': f'{TAB_NAME}!G1', 'values': [['Kürzel']]},
+            {'range': f'{TAB_NAME}!C1', 'values': [['']]},
+            {'range': f'{TAB_NAME}!F1', 'values': [['']]},
         ]},
     ).execute()
 
@@ -1263,9 +1325,14 @@ def main():
     drive_service = build('drive', 'v3', credentials=creds)
     sheets_service = build('sheets', 'v4', credentials=creds)
 
-    # 1. Alle Daten aus dem Sheet lesen (A-C, ab Zeile 2)
+    # 1. Alle Daten aus dem Sheet lesen (A-H, ab Zeile 2)
     sheet = sheets_service.spreadsheets()
-    result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!A2:C').execute()
+    ensure_dashboard_headers(sheets_service)
+    migrated_status = migrate_ux_status_to_column_h(sheets_service)
+    if migrated_status:
+        print(f'ℹ️ UX-Status nach Spalte H verschoben: {migrated_status} Zeilen (Spalte C bleibt leer).')
+
+    result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}').execute()
     rows = result.get('values', [])
 
     if not rows:
@@ -1292,7 +1359,7 @@ def main():
     removed_bl = 0
     removed_versendet = 0
     for row in rows:
-        status = row[2].strip().lower() if len(row) > 2 else ''
+        status = dashboard_row_status(row)
         nummer = normalize_number(row[0]) if row else ''
         if status.startswith('versendet'):
             removed_versendet += 1
@@ -1300,10 +1367,10 @@ def main():
         if nummer and nummer in remove_numbers:
             removed_bl += 1
             continue
-        filtered_rows.append(row)
+        filtered_rows.append(dashboard_row_for_sheet(row))
 
     # 4. Alte Daten löschen
-    sheet.values().clear(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!A2:C').execute()
+    sheet.values().clear(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}').execute()
 
     # 5. Gefilterte Daten zurückschreiben
     if filtered_rows:
@@ -1339,13 +1406,14 @@ def main():
                 entry.get('gutachten_type', ''),
                 '',
                 entry.get('shortcode', ''),
+                '',
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:G{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:H{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
