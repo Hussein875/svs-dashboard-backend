@@ -227,11 +227,9 @@ def migrate_dashboard_columns_compact(sheets_service):
 
 
 def ensure_dashboard_headers(sheets_service):
-    sheets_service.spreadsheets().values().batchUpdate(
+    sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        body={'valueInputOption': 'RAW', 'data': [
-            {'range': f'{TAB_NAME}!A1:F1', 'values': [DASHBOARD_HEADERS]},
-        ]},
+        range=f'{TAB_NAME}!A1:F1',
     ).execute()
 
 
