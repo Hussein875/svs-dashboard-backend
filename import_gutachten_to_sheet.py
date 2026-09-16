@@ -136,6 +136,52 @@ def build_drive_type_by_number(dateien):
     return mapping
 
 
+def build_drive_shortcode_by_number(dateien):
+    mapping = {}
+    for file in dateien:
+        name = file.get('name', '').strip()
+        if not is_valid_drive_entry(name):
+            continue
+        nummer, _ = extract_number_and_year(name)
+        shortcode = extract_folder_shortcode(name)
+        if nummer and shortcode:
+            mapping[nummer] = shortcode
+    return mapping
+
+
+def ensure_dashboard_headers(sheets_service):
+    sheets_service.spreadsheets().values().batchUpdate(
+        spreadsheetId=SPREADSHEET_ID,
+        body={'valueInputOption': 'RAW', 'data': [
+            {'range': f'{TAB_NAME}!G1', 'values': [['Kürzel']]},
+        ]},
+    ).execute()
+
+
+def sync_folder_shortcodes(sheets_service, dateien):
+    shortcode_map = build_drive_shortcode_by_number(dateien)
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:A')
+    if not rows:
+        return 0
+
+    values = []
+    marked = 0
+    for row in rows:
+        nummer = normalize_number(row[0] if row else '')
+        shortcode = shortcode_map.get(nummer, '')
+        values.append([shortcode])
+        if shortcode:
+            marked += 1
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!G2',
+        valueInputOption='RAW',
+        body={'values': values},
+    ).execute()
+    return marked
+
+
 def sync_gutachten_types(sheets_service, dateien):
     type_map = build_drive_type_by_number(dateien)
     rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:A')
@@ -411,23 +457,52 @@ def read_sheet_values(sheets_service, tab, cell_range):
     return result.get('values', []) or []
 
 
+def migrate_statistik_run_time_cell(sheets_service):
+    run_time = read_sheet_values(sheets_service, STATISTIK_TAB, 'G1')
+    if run_time and str(run_time[0][0] or '').strip():
+        return
+
+    legacy = read_sheet_values(sheets_service, STATISTIK_TAB, 'F1')
+    if not legacy or not legacy[0]:
+        return
+
+    legacy_value = str(legacy[0][0] or '').strip()
+    if not legacy_value or legacy_value.lower() == 'letzter_lauf':
+        return
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{STATISTIK_TAB}!G1',
+        valueInputOption='RAW',
+        body={'values': [[legacy_value]]},
+    ).execute()
+
+
 def ensure_statistik_tab(sheets_service):
-    ensure_tab(sheets_service, STATISTIK_TAB, ['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von'])
+    ensure_tab(
+        sheets_service,
+        STATISTIK_TAB,
+        ['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von', 'Kürzel'],
+    )
     sheets_service.spreadsheets().values().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={'valueInputOption': 'RAW', 'data': [
-            {'range': f'{STATISTIK_TAB}!A1:D1', 'values': [['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von']]},
-            {'range': f'{STATISTIK_TAB}!E1', 'values': [['Letzter_Lauf']]},
+            {
+                'range': f'{STATISTIK_TAB}!A1:E1',
+                'values': [['Datum', 'Uhrzeit', 'Aktennummer', 'Hochgeladen_von', 'Kürzel']],
+            },
+            {'range': f'{STATISTIK_TAB}!F1', 'values': [['Letzter_Lauf']]},
             {'range': f'{STATISTIK_TAB}!H1:K1', 'values': [['Datum', SYNC_COLUMN_LABEL, 'RB_Offene', 'Stargutachter']]},
         ]}
     ).execute()
+    migrate_statistik_run_time_cell(sheets_service)
     compact_import_log(sheets_service)
 
 
 def migrate_statistik_data(sheets_service):
     import_rows = read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:C')
     daily_rows = read_sheet_values(sheets_service, STATISTIK_TAB, 'H2:J')
-    run_time = read_sheet_values(sheets_service, STATISTIK_TAB, 'F1')
+    run_time = read_sheet_values(sheets_service, STATISTIK_TAB, 'G1')
 
     updates = []
 
@@ -439,7 +514,7 @@ def migrate_statistik_data(sheets_service):
 
         legacy_run = read_sheet_values(sheets_service, LEGACY_IMPORT_LOG_TAB, 'D1:E1')
         if legacy_run and legacy_run[0] and len(legacy_run[0]) >= 2 and not run_time:
-            updates.append({'range': f'{STATISTIK_TAB}!F1', 'values': [[legacy_run[0][1]]]})
+            updates.append({'range': f'{STATISTIK_TAB}!G1', 'values': [[legacy_run[0][1]]]})
 
     if not daily_rows and tab_exists(sheets_service, LEGACY_TAGES_STAT_TAB):
         legacy_daily = read_sheet_values(sheets_service, LEGACY_TAGES_STAT_TAB, 'A2:F')
@@ -468,7 +543,7 @@ def import_numbers_ever_logged(log_rows):
 
 
 def compact_import_log(sheets_service):
-    rows = read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D')
+    rows = read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:E')
     if not rows:
         return 0
 
@@ -476,20 +551,20 @@ def compact_import_log(sheets_service):
     compacted = []
     for row in rows:
         normalized = list(row)
-        while len(normalized) < 4:
+        while len(normalized) < 5:
             normalized.append('')
         nummer = normalize_number(normalized[2])
         if not nummer or nummer in seen:
             continue
         seen.add(nummer)
-        compacted.append(normalized[:4])
+        compacted.append(normalized[:5])
 
     if len(compacted) == len(rows):
         return 0
 
     sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{STATISTIK_TAB}!A2:D',
+        range=f'{STATISTIK_TAB}!A2:E',
     ).execute()
     if compacted:
         sheets_service.spreadsheets().values().update(
@@ -513,32 +588,40 @@ def append_import_log(sheets_service, entries):
     now = local_now()
     today = now.strftime('%Y-%m-%d')
     logged_ever = import_numbers_ever_logged(
-        read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D'),
+        read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:E'),
     )
     to_log = []
     for entry in entries:
         if isinstance(entry, dict):
             nummer = str(entry.get('nummer') or '').strip()
             uploader = str(entry.get('uploader') or '').strip()
+            shortcode = str(entry.get('shortcode') or '').strip()
         else:
             nummer = str(entry or '').strip()
             uploader = ''
+            shortcode = ''
         normalized = normalize_number(nummer)
         if not normalized or normalized in logged_ever:
             continue
         logged_ever.add(normalized)
-        to_log.append({'nummer': nummer, 'uploader': uploader})
+        to_log.append({'nummer': nummer, 'uploader': uploader, 'shortcode': shortcode})
 
     if not to_log:
         return
 
     rows = [
-        [today, now.strftime('%H:%M:%S'), entry['nummer'], entry.get('uploader', '')]
+        [
+            today,
+            now.strftime('%H:%M:%S'),
+            entry['nummer'],
+            entry.get('uploader', ''),
+            entry.get('shortcode', ''),
+        ]
         for entry in to_log
     ]
     sheets_service.spreadsheets().values().append(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{STATISTIK_TAB}!A:D',
+        range=f'{STATISTIK_TAB}!A:E',
         valueInputOption='RAW',
         body={'values': rows}
     ).execute()
@@ -550,7 +633,7 @@ def record_import_run(sheets_service):
     now = local_now()
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{STATISTIK_TAB}!F1',
+        range=f'{STATISTIK_TAB}!G1',
         valueInputOption='RAW',
         body={'values': [[now.strftime('%Y-%m-%d %H:%M:%S')]]}
     ).execute()
@@ -559,7 +642,7 @@ def record_import_run(sheets_service):
 def read_import_log_rows(sheets_service):
     ensure_statistik_tab(sheets_service)
     migrate_statistik_data(sheets_service)
-    return read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:D')
+    return read_sheet_values(sheets_service, STATISTIK_TAB, 'A2:E')
 
 
 def count_imports_for_date(log_rows, date_str):
@@ -1238,7 +1321,8 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (nur RO/RA), D=Uploader
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (nur RO/RA), D=Uploader, E=Typ, G=Kürzel
+    ensure_dashboard_headers(sheets_service)
     startzeile = len(filtered_rows) + 2
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1253,13 +1337,15 @@ def main():
                 '',
                 entry.get('uploader', ''),
                 entry.get('gutachten_type', ''),
+                '',
+                entry.get('shortcode', ''),
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:G{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1271,11 +1357,15 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     try:
+        ensure_dashboard_headers(sheets_service)
         wert_count = sync_gutachten_types(sheets_service, dateien)
         if wert_count:
             print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte E).")
+        kurzel_count = sync_folder_shortcodes(sheets_service, dateien)
+        if kurzel_count:
+            print(f"ℹ️ Ordner-Kürzel aktualisiert: {kurzel_count} markiert (Spalte G).")
     except HttpError as exc:
-        print(f'⚠️ Gutachten-Typen konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
+        print(f'⚠️ Gutachten-Typen/Kürzel konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
     log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
