@@ -163,6 +163,19 @@ DASHBOARD_HEADER_LABELS = frozenset({
     'nummer',
 })
 UX_SYNC_VALUES = {'pending', 'ok', 'error'}
+RECOGNIZED_SHEET_ASSIGNEES = frozenset({
+    'hadi', 'hadi issa',
+    'ramazan', 'ramazan dag',
+    'robar', 'robar kassem', 'robar kassam',
+    'osama', 'osama sleiman', 'osama souleiman',
+    'h', 'hj', 'hussein jaber',
+    'b', 'hussein selman',
+    'hu', 'hussein souleiman', 'hussein suleiman',
+    'm', 'mohamed', 'mohamad', 'mohammed', 'muhammad',
+    'mohamed zahreddine', 'mohamad zahreddine', 'mohammed zahreddine',
+    'mohamed zahhredine', 'mohamad zahhredine', 'mohammed zahhredine',
+    'mohamed zahredine', 'mohamad zahredine', 'mohammed zahredine',
+})
 
 
 def normalize_dashboard_row(row):
@@ -248,6 +261,46 @@ def migrate_dashboard_columns_compact(sheets_service):
         ).execute()
 
     return len(compacted)
+
+
+def is_recognized_sheet_assignee(value):
+    normalized = str(value or '').strip().lower()
+    if not normalized:
+        return True
+    if normalized in RECOGNIZED_SHEET_ASSIGNEES:
+        return True
+    if 'hussein' in normalized or 'mohamed' in normalized or 'mohamad' in normalized or 'mohammed' in normalized:
+        return True
+    if 'zahreddine' in normalized or 'zahhredine' in normalized or 'zahredine' in normalized:
+        return True
+    return False
+
+
+def sanitize_sheet_assignees(sheets_service):
+    rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
+    if not rows:
+        return 0
+
+    cleaned = []
+    removed = 0
+    for row in rows:
+        normalized = dashboard_row_for_sheet(row)
+        if not is_recognized_sheet_assignee(normalized[1]):
+            normalized[1] = ''
+            removed += 1
+        cleaned.append(normalized)
+
+    if not removed:
+        return 0
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
+        valueInputOption='RAW',
+        body={'values': cleaned},
+    ).execute()
+    print(f'ℹ️ Unbekannte UX-Namen aus Spalte B entfernt: {removed}')
+    return removed
 
 
 def ensure_dashboard_headers(sheets_service):
@@ -1368,6 +1421,7 @@ def main():
     migrated_rows = migrate_dashboard_columns_compact(sheets_service)
     if migrated_rows:
         print(f'ℹ️ Dashboard-Spalten bereinigt: {migrated_rows} Zeilen (A-F, Status in C).')
+    sanitize_sheet_assignees(sheets_service)
 
     result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}').execute()
     rows = result.get('values', [])
