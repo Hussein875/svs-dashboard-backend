@@ -83,6 +83,14 @@ UPLOADER_ALIASES = {
     'dashboard-bot@ux-dashboard-465511.iam.gserviceaccount.com': 'Bot',
 }
 
+# Kürzel in Klammern am Ordnerende — nur RO/RA werden beim Import automatisch zugewiesen.
+# Weitere Kürzel (Referenz): HB=Hussein Selman, HU=Hussein Souleiman, DI=Diyar,
+# MZ=Mohamed Zahreddine, IZ=Izzedin, OS=Osama, HA=Hassan Souleiman, HK=Hassan Khodr, HJ=Hussein Jaber
+AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
+    'RO': 'Robar Kassam',
+    'RA': 'Ramazan Dag',
+}
+
 
 def resolve_drive_uploader(file_item):
     user = file_item.get('lastModifyingUser') or {}
@@ -94,6 +102,62 @@ def resolve_drive_uploader(file_item):
     if not display:
         return 'Unbekannt'
     return UPLOADER_ALIASES.get(display.lower(), display)
+
+
+def extract_folder_shortcode(folder_name):
+    match = re.search(r'\(([A-Za-z]{1,4})\)\s*$', str(folder_name or '').strip())
+    return match.group(1).upper() if match else ''
+
+
+def resolve_auto_assign_bearbeiter(folder_name):
+    shortcode = extract_folder_shortcode(folder_name)
+    return AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
+
+
+def extract_gutachten_type(folder_name):
+    lower_name = str(folder_name or '').strip().lower()
+    if 'wertgutachten' in lower_name:
+        return 'wert'
+    if 'kostenvoranschlag' in lower_name or re.search(r'\bkva\b', lower_name):
+        return 'kva'
+    return ''
+
+
+def build_drive_type_by_number(dateien):
+    mapping = {}
+    for file in dateien:
+        name = file.get('name', '').strip()
+        if not is_valid_drive_entry(name):
+            continue
+        nummer, _ = extract_number_and_year(name)
+        gutachten_type = extract_gutachten_type(name)
+        if nummer and gutachten_type:
+            mapping[nummer] = gutachten_type
+    return mapping
+
+
+def sync_gutachten_types(sheets_service, dateien):
+    type_map = build_drive_type_by_number(dateien)
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:A')
+    if not rows:
+        return 0
+
+    values = []
+    marked = 0
+    for row in rows:
+        nummer = normalize_number(row[0] if row else '')
+        gutachten_type = type_map.get(nummer, '')
+        values.append([gutachten_type])
+        if gutachten_type:
+            marked += 1
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!E2',
+        valueInputOption='RAW',
+        body={'values': values},
+    ).execute()
+    return marked
 
 
 def normalize_number(value):
@@ -284,9 +348,13 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
             continue
 
         gesehen.add(nummer)
+        shortcode = extract_folder_shortcode(name)
         neue_nummern.append({
             'nummer': nummer,
             'uploader': resolve_drive_uploader(file),
+            'shortcode': shortcode,
+            'bearbeiter': resolve_auto_assign_bearbeiter(name),
+            'gutachten_type': extract_gutachten_type(name),
         })
 
     return neue_nummern
@@ -1170,17 +1238,28 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge in Spalte A (+ Uploader in D) schreiben
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (nur RO/RA), D=Uploader
     startzeile = len(filtered_rows) + 2
     if neue_eintraege:
+        for entry in neue_eintraege:
+            bearbeiter = entry.get('bearbeiter', '')
+            if bearbeiter:
+                shortcode = entry.get('shortcode') or '?'
+                print(f"📌 Auto-Zuweisung ({shortcode}): {entry['nummer']} → {bearbeiter}")
         values = [
-            [entry['nummer'], '', '', entry.get('uploader', '')]
+            [
+                entry['nummer'],
+                entry.get('bearbeiter', ''),
+                '',
+                entry.get('uploader', ''),
+                entry.get('gutachten_type', ''),
+            ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:D{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1190,6 +1269,13 @@ def main():
         print(f"✅ {len(neue_eintraege)} neue Einträge eingetragen.")
     else:
         print("✅ Keine neuen Einträge eingetragen.")
+
+    try:
+        wert_count = sync_gutachten_types(sheets_service, dateien)
+        if wert_count:
+            print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte E).")
+    except HttpError as exc:
+        print(f'⚠️ Gutachten-Typen konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
     log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
