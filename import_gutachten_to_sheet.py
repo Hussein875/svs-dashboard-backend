@@ -1421,8 +1421,6 @@ def main():
     migrated_rows = migrate_dashboard_columns_compact(sheets_service)
     if migrated_rows:
         print(f'ℹ️ Dashboard-Spalten bereinigt: {migrated_rows} Zeilen (A-F, Status in C).')
-    sanitize_sheet_assignees(sheets_service)
-
     result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}').execute()
     rows = result.get('values', [])
 
