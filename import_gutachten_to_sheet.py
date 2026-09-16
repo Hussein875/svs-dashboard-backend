@@ -188,12 +188,12 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A2:F'
+DASHBOARD_DATA_RANGE = 'A1:E'
+DASHBOARD_COLUMNS = 5
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
     'status',
-    'hochgeladen_von',
     'gutachten-typ',
     'gutachten_typ',
     'kürzel',
@@ -207,9 +207,9 @@ RECOGNIZED_SHEET_ASSIGNEES = frozenset(SHEET_ASSIGNEE_ALIASES.keys())
 
 def normalize_dashboard_row(row):
     normalized = list(row or [])
-    while len(normalized) < 6:
+    while len(normalized) < DASHBOARD_COLUMNS:
         normalized.append('')
-    return normalized[:6]
+    return normalized[:DASHBOARD_COLUMNS]
 
 
 def dashboard_row_status(row):
@@ -231,7 +231,7 @@ def is_dashboard_header_row(row):
     if not normalize_number(normalized[0]):
         return all(
             str(normalized[idx] or '').strip().lower() in DASHBOARD_HEADER_LABELS
-            for idx in range(6)
+            for idx in range(DASHBOARD_COLUMNS)
             if str(normalized[idx] or '').strip()
         )
     return False
@@ -239,52 +239,73 @@ def is_dashboard_header_row(row):
 
 def compact_dashboard_row_from_legacy(row):
     normalized = list(row or [])
-    while len(normalized) < 8:
+    while len(normalized) < DASHBOARD_COLUMNS:
         normalized.append('')
 
     status = str(normalized[2] or '').strip()
-    if not status:
+    col_d = str(normalized[3] or '').strip().lower()
+    if col_d in ('wert', 'kva', ''):
+        return [
+            normalized[0],
+            normalized[1],
+            status,
+            col_d,
+            str(normalized[4] or '').strip(),
+        ]
+
+    while len(normalized) < 6:
+        normalized.append('')
+    if not status and len(normalized) > 7:
         status = str(normalized[7] or '').strip()
-
-    shortcode = str(normalized[6] or '').strip()
-    if not shortcode:
-        legacy_f = str(normalized[5] or '').strip()
-        if legacy_f and legacy_f.lower() not in UX_SYNC_VALUES:
-            shortcode = legacy_f
-
+    shortcode = str(normalized[5] or '').strip()
     return [
         normalized[0],
         normalized[1],
         status,
-        normalized[3],
-        normalized[4],
+        str(normalized[4] or '').strip().lower(),
         shortcode,
     ]
 
 
+def dashboard_needs_column_migration(sheets_service):
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:F')
+    if not rows:
+        return False
+    f_values = read_sheet_values(sheets_service, TAB_NAME, 'F1:F')
+    if any(str(row[0]).strip() for row in f_values if row):
+        return True
+    for row in rows:
+        if is_dashboard_header_row(row):
+            return True
+        normalized = list(row or [])
+        while len(normalized) < 4:
+            normalized.append('')
+        col_d = str(normalized[3] or '').strip().lower()
+        if col_d and col_d not in ('wert', 'kva'):
+            return True
+    return False
+
+
 def migrate_dashboard_columns_compact(sheets_service):
-    wide_rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:H')
-    compact_rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
-    source_rows = wide_rows if wide_rows else compact_rows
-    if not source_rows:
+    legacy_rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:F')
+    if not legacy_rows:
         return 0
 
     compacted = [
         compact_dashboard_row_from_legacy(row)
-        for row in source_rows
-        if not is_dashboard_header_row(row)
+        for row in legacy_rows
+        if not is_dashboard_header_row(row) and normalize_number(row[0] if row else '')
     ]
-    sheets_service.spreadsheets().values().update(
+    sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
-        valueInputOption='RAW',
-        body={'values': compacted},
+        range=f'{TAB_NAME}!A1:F',
     ).execute()
-
-    if wide_rows:
-        sheets_service.spreadsheets().values().clear(
+    if compacted:
+        sheets_service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!G2:H',
+            range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
+            valueInputOption='RAW',
+            body={'values': compacted},
         ).execute()
 
     return len(compacted)
@@ -343,7 +364,7 @@ def sync_sheet_assignees(sheets_service):
     for row in rows:
         normalized = dashboard_row_for_sheet(row)
         current = str(normalized[1] or '').strip()
-        shortcode = str(normalized[5] or '').strip().upper()
+        shortcode = str(normalized[4] or '').strip().upper()
         next_assignee = normalize_sheet_assignee(current)
         if not next_assignee and not current:
             next_assignee = AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
@@ -392,16 +413,9 @@ def sanitize_sheet_assignees(sheets_service):
     return removed
 
 
-def ensure_dashboard_headers(sheets_service):
-    sheets_service.spreadsheets().values().clear(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!A1:F1',
-    ).execute()
-
-
 def sync_folder_shortcodes(sheets_service, dateien):
     shortcode_map = build_drive_shortcode_by_number(dateien)
-    rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:A')
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
     if not rows:
         return 0
 
@@ -416,7 +430,7 @@ def sync_folder_shortcodes(sheets_service, dateien):
 
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!F2',
+        range=f'{TAB_NAME}!E1',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
@@ -425,7 +439,7 @@ def sync_folder_shortcodes(sheets_service, dateien):
 
 def sync_gutachten_types(sheets_service, dateien):
     type_map = build_drive_type_by_number(dateien)
-    rows = read_sheet_values(sheets_service, TAB_NAME, 'A2:A')
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
     if not rows:
         return 0
 
@@ -440,7 +454,7 @@ def sync_gutachten_types(sheets_service, dateien):
 
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!E2',
+        range=f'{TAB_NAME}!D1',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
@@ -1504,12 +1518,12 @@ def main():
     drive_service = build('drive', 'v3', credentials=creds)
     sheets_service = build('sheets', 'v4', credentials=creds)
 
-    # 1. Alle Daten aus dem Sheet lesen (A-F, ab Zeile 2)
+    # 1. Alle Daten aus dem Sheet lesen (A-E, ab Zeile 1)
     sheet = sheets_service.spreadsheets()
-    ensure_dashboard_headers(sheets_service)
-    migrated_rows = migrate_dashboard_columns_compact(sheets_service)
-    if migrated_rows:
-        print(f'ℹ️ Dashboard-Spalten bereinigt: {migrated_rows} Zeilen (A-F, Status in C).')
+    if dashboard_needs_column_migration(sheets_service):
+        migrated_rows = migrate_dashboard_columns_compact(sheets_service)
+        if migrated_rows:
+            print(f'ℹ️ Dashboard-Spalten bereinigt: {migrated_rows} Zeilen (A-E, ohne Uploader).')
     result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}').execute()
     rows = result.get('values', [])
 
@@ -1556,7 +1570,7 @@ def main():
     if filtered_rows:
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A2',
+            range=f'{TAB_NAME}!A1',
             valueInputOption='RAW',
             body={'values': filtered_rows}
         ).execute()
@@ -1568,9 +1582,8 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (aus Kürzel), C=Status, D=Uploader, E=Typ, F=Kürzel
-    ensure_dashboard_headers(sheets_service)
-    startzeile = len(filtered_rows) + 2
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (aus Kürzel), C=Status, D=Typ, E=Kürzel
+    startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
             bearbeiter = entry.get('bearbeiter', '')
@@ -1582,7 +1595,6 @@ def main():
                 entry['nummer'],
                 entry.get('bearbeiter', ''),
                 '',
-                entry.get('uploader', ''),
                 entry.get('gutachten_type', ''),
                 entry.get('shortcode', ''),
             ]
@@ -1591,7 +1603,7 @@ def main():
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1603,14 +1615,13 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     try:
-        ensure_dashboard_headers(sheets_service)
         sync_sheet_assignees(sheets_service)
         wert_count = sync_gutachten_types(sheets_service, dateien)
         if wert_count:
-            print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte E).")
+            print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte D).")
         kurzel_count = sync_folder_shortcodes(sheets_service, dateien)
         if kurzel_count:
-            print(f"ℹ️ Ordner-Kürzel aktualisiert: {kurzel_count} markiert (Spalte F).")
+            print(f"ℹ️ Ordner-Kürzel aktualisiert: {kurzel_count} markiert (Spalte E).")
     except HttpError as exc:
         print(f'⚠️ Gutachten-Typen/Kürzel konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
