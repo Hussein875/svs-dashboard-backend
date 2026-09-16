@@ -7,6 +7,9 @@ services:
     restart: unless-stopped
     environment:
       TZ: Europe/Berlin
+      UX_PLAYWRIGHT_LOCK_FILE: /locks/playwright.lock
     volumes:
       - /opt/secrets/google-sa.json:/secrets/google-sa.json:ro
       - /opt/secrets/ux-watcher.env:/secrets/ux-watcher.env:ro
+      - /opt/secrets/playwright-locks:/locks
+    shm_size: "1gb"

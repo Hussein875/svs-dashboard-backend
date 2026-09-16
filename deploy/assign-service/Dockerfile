@@ -8,6 +8,7 @@ RUN npm ci --omit=dev
 COPY code/UX-Watcher/assign-sachbearbeiter.js \
      code/UX-Watcher/assign-server.js \
      code/UX-Watcher/google.js \
+     code/UX-Watcher/playwright-shared.js \
      ./
 
 ENV NODE_ENV=production

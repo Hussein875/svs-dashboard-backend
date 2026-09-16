@@ -5,7 +5,7 @@ WORKDIR /app
 COPY code/UX-Watcher/package.json code/UX-Watcher/package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY code/UX-Watcher/watcher.js code/UX-Watcher/google.js code/UX-Watcher/assign-sachbearbeiter.js ./
+COPY code/UX-Watcher/watcher.js code/UX-Watcher/google.js code/UX-Watcher/playwright-shared.js ./
 COPY deploy/ux-watcher/run-watcher.sh /app/run-watcher.sh
 COPY deploy/ux-watcher/crontab /etc/cron.d/ux-watcher
 
