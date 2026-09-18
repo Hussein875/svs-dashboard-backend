@@ -287,6 +287,19 @@ def build_drive_type_by_number(dateien):
     return mapping
 
 
+def build_drive_folder_id_by_number(dateien):
+    mapping = {}
+    for file in dateien:
+        name = file.get('name', '').strip()
+        if not is_valid_drive_entry(name):
+            continue
+        nummer, _ = extract_number_and_year(name)
+        folder_id = str(file.get('id') or '').strip()
+        if nummer and folder_id:
+            mapping[nummer] = folder_id
+    return mapping
+
+
 def build_drive_shortcode_by_number(dateien):
     mapping = {}
     for file in dateien:
@@ -300,8 +313,8 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:F'
-DASHBOARD_COLUMNS = 6
+DASHBOARD_DATA_RANGE = 'A1:G'
+DASHBOARD_COLUMNS = 7
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -311,6 +324,8 @@ DASHBOARD_HEADER_LABELS = frozenset({
     'kürzel',
     'kurzel',
     'hochgeladen_von',
+    'drive_ordner_id',
+    'folder_id',
     'eingang',
     'nummer',
 })
@@ -357,7 +372,7 @@ def is_likely_folder_shortcode(value):
 
 def compact_dashboard_row_from_legacy(row):
     normalized = list(row or [])
-    while len(normalized) < 6:
+    while len(normalized) < DASHBOARD_COLUMNS:
         normalized.append('')
 
     status = str(normalized[2] or '').strip()
@@ -375,6 +390,8 @@ def compact_dashboard_row_from_legacy(row):
     else:
         uploader, account = col_e, ''
 
+    folder_id = str(normalized[6] if len(normalized) > 6 else '').strip()
+
     if col_d in ('wert', 'kva', 'kasko', ''):
         return [
             normalized[0],
@@ -383,6 +400,7 @@ def compact_dashboard_row_from_legacy(row):
             col_d,
             uploader,
             account,
+            folder_id,
         ]
 
     if not status and len(normalized) > 7:
@@ -394,11 +412,12 @@ def compact_dashboard_row_from_legacy(row):
         str(normalized[4] or '').strip().lower(),
         str(normalized[3] or '').strip(),
         account,
+        folder_id,
     ]
 
 
 def dashboard_needs_column_migration(sheets_service):
-    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:F')
+    rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
     if not rows:
         return False
     legacy_status_terms = (
@@ -420,7 +439,7 @@ def dashboard_needs_column_migration(sheets_service):
 
 
 def migrate_dashboard_columns_compact(sheets_service):
-    legacy_rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:F')
+    legacy_rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
     if not legacy_rows:
         return 0
 
@@ -431,7 +450,7 @@ def migrate_dashboard_columns_compact(sheets_service):
     ]
     sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!A1:F',
+        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
     ).execute()
     if compacted:
         sheets_service.spreadsheets().values().update(
@@ -548,6 +567,30 @@ def sanitize_sheet_assignees(sheets_service):
     return removed
 
 
+def sync_drive_folder_ids(sheets_service, dateien):
+    folder_map = build_drive_folder_id_by_number(dateien)
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
+    if not rows:
+        return 0
+
+    values = []
+    marked = 0
+    for row in rows:
+        nummer = normalize_number(row[0] if row else '')
+        folder_id = folder_map.get(nummer, '')
+        values.append([folder_id])
+        if folder_id:
+            marked += 1
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!G1',
+        valueInputOption='RAW',
+        body={'values': values},
+    ).execute()
+    return marked
+
+
 def sync_uploaders(sheets_service, dateien):
     uploader_map = build_drive_uploader_by_number(dateien)
     shortcode_map = build_drive_shortcode_by_number(dateien)
@@ -644,7 +687,7 @@ def list_drive_files(drive_service, folder_id=None, folders_only=False):
     while True:
         request = drive_service.files().list(
             q=' and '.join(query_parts),
-            fields='nextPageToken, files(name, mimeType, lastModifyingUser, owners, createdTime)',
+            fields='nextPageToken, files(id, name, mimeType, lastModifyingUser, owners, createdTime)',
             pageSize=200,
             pageToken=page_token,
             includeItemsFromAllDrives=INCLUDE_ALL_DRIVES,
@@ -797,6 +840,7 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
             'shortcode': shortcode,
             'bearbeiter': resolve_auto_assign_bearbeiter(name),
             'gutachten_type': extract_gutachten_type(name),
+            'folder_id': str(file.get('id') or '').strip(),
         })
 
     return neue_nummern
@@ -1728,7 +1772,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Drive-Account
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Account, G=Drive-Ordner-ID
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1748,13 +1792,14 @@ def main():
                     entry.get('shortcode', ''),
                 ),
                 entry.get('uploader_account', ''),
+                entry.get('folder_id', ''),
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:G{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1773,8 +1818,11 @@ def main():
         uploader_count = sync_uploaders(sheets_service, dateien)
         if uploader_count:
             print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E/F).")
+        folder_count = sync_drive_folder_ids(sheets_service, dateien)
+        if folder_count:
+            print(f"ℹ️ Drive-Ordner-IDs aktualisiert: {folder_count} markiert (Spalte G).")
     except HttpError as exc:
-        print(f'⚠️ Gutachten-Typen/Uploader konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
+        print(f'⚠️ Gutachten-Typen/Uploader/Ordner-IDs konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
     log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
