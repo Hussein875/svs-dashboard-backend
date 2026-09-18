@@ -84,13 +84,12 @@ UPLOADER_ALIASES = {
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
-# Referenz ohne Auto-Zuweisung: DI=Diyar, IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr
+# Referenz ohne Auto-Zuweisung: DI=Diyar, IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr, HU=Hussein Souleiman
 AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
     'RO': 'Robar',
     'RA': 'Ramazan',
     'OS': 'Osama',
     'HB': 'B',
-    'HU': 'HU',
     'HJ': 'HJ',
     'MZ': 'M',
 }
