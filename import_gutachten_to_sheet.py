@@ -123,6 +123,10 @@ KUERZEL_REFERENCE_ROWS = [
     ['IZ', 'Izzedin'],
     ['ID', 'Diyar'],
 ]
+TEAM_KUERZEL = frozenset(
+    row[0] for row in KUERZEL_REFERENCE_ROWS[1:]
+) | frozenset({'HB', 'DI'})
+IGNORED_UPLOADER_ACCOUNTS = frozenset({'info'})
 AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
     'RO': 'Robar',
     'RA': 'Ramazan',
@@ -168,20 +172,31 @@ SHEET_ASSIGNEE_ALIASES = {
 }
 
 
-def resolve_drive_uploader_account(file_item):
-    user = file_item.get('lastModifyingUser') or {}
+def account_id_from_drive_user(user):
     email = str(user.get('emailAddress') or '').strip().lower()
     if email and '@' in email:
         return email.split('@', 1)[0]
     display = str(user.get('displayName') or '').strip().lower()
     if display and re.fullmatch(r'[a-z0-9._-]+', display):
         return display
+    return ''
+
+
+def resolve_drive_uploader_account(file_item):
     owners = file_item.get('owners') or []
     if owners:
-        owner_email = str(owners[0].get('emailAddress') or '').strip().lower()
-        if owner_email and '@' in owner_email:
-            return owner_email.split('@', 1)[0]
-    return ''
+        owner_account = account_id_from_drive_user(owners[0])
+        if owner_account and owner_account not in IGNORED_UPLOADER_ACCOUNTS:
+            return owner_account
+
+    user = file_item.get('lastModifyingUser') or {}
+    modifier_account = account_id_from_drive_user(user)
+    if modifier_account and modifier_account not in IGNORED_UPLOADER_ACCOUNTS:
+        return modifier_account
+
+    if owners:
+        return account_id_from_drive_user(owners[0])
+    return modifier_account
 
 
 def normalize_display_kuerzel(value):
@@ -198,21 +213,25 @@ def normalize_display_kuerzel(value):
     return raw
 
 
+def is_team_kuerzel(value):
+    return normalize_display_kuerzel(value) in TEAM_KUERZEL
+
+
 def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
-    # Primär: Kürzel aus Ordnernamen, z. B. „… (RO)“ am Ende
+    # Nur echte Team-Kürzel aus Ordnernamen, z. B. „… (RO)“ — nicht INFO o. Ä.
     folder_kuerzel = normalize_display_kuerzel(shortcode)
-    if folder_kuerzel:
+    if folder_kuerzel and is_team_kuerzel(folder_kuerzel):
         return folder_kuerzel
 
     for key in (account, uploader):
         normalized_key = str(key or '').strip().lower()
+        if normalized_key in IGNORED_UPLOADER_ACCOUNTS:
+            continue
         if normalized_key and normalized_key in UPLOADER_ALIASES:
             return normalize_display_kuerzel(UPLOADER_ALIASES[normalized_key])
 
     normalized_uploader = normalize_display_kuerzel(uploader)
-    if normalized_uploader and normalized_uploader != str(uploader or '').strip():
-        return normalized_uploader
-    if normalized_uploader and re.fullmatch(r'[A-Z]{1,4}', normalized_uploader):
+    if normalized_uploader and is_team_kuerzel(normalized_uploader):
         return normalized_uploader
 
     return ''
