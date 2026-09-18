@@ -182,21 +182,12 @@ def account_id_from_drive_user(user):
     return ''
 
 
-def resolve_drive_uploader_account(file_item):
+def resolve_drive_owner_account(file_item):
+    """Spalte F: nur Ordner-Ersteller (Owner), nie lastModifyingUser."""
     owners = file_item.get('owners') or []
-    if owners:
-        owner_account = account_id_from_drive_user(owners[0])
-        if owner_account and owner_account not in IGNORED_UPLOADER_ACCOUNTS:
-            return owner_account
-
-    user = file_item.get('lastModifyingUser') or {}
-    modifier_account = account_id_from_drive_user(user)
-    if modifier_account and modifier_account not in IGNORED_UPLOADER_ACCOUNTS:
-        return modifier_account
-
-    if owners:
-        return account_id_from_drive_user(owners[0])
-    return modifier_account
+    if not owners:
+        return ''
+    return account_id_from_drive_user(owners[0])
 
 
 def normalize_display_kuerzel(value):
@@ -238,7 +229,7 @@ def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
 
 
 def resolve_drive_uploader(file_item):
-    account = resolve_drive_uploader_account(file_item)
+    account = resolve_drive_owner_account(file_item)
     user = file_item.get('lastModifyingUser') or {}
     display = str(user.get('displayName') or '').strip()
     if not display:
@@ -288,7 +279,7 @@ def build_drive_uploader_by_number(dateien):
         if nummer:
             mapping[nummer] = {
                 'uploader': resolve_drive_uploader(file),
-                'account': resolve_drive_uploader_account(file),
+                'account': resolve_drive_owner_account(file),
             }
     return mapping
 
@@ -855,7 +846,7 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
         neue_nummern.append({
             'nummer': nummer,
             'uploader': resolve_drive_uploader(file),
-            'uploader_account': resolve_drive_uploader_account(file),
+            'uploader_account': resolve_drive_owner_account(file),
             'shortcode': shortcode,
             'bearbeiter': resolve_auto_assign_bearbeiter(name),
             'gutachten_type': extract_gutachten_type(name),
