@@ -199,6 +199,11 @@ def normalize_display_kuerzel(value):
 
 
 def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
+    # Primär: Kürzel aus Ordnernamen, z. B. „… (RO)“ am Ende
+    folder_kuerzel = normalize_display_kuerzel(shortcode)
+    if folder_kuerzel:
+        return folder_kuerzel
+
     for key in (account, uploader):
         normalized_key = str(key or '').strip().lower()
         if normalized_key and normalized_key in UPLOADER_ALIASES:
@@ -210,7 +215,7 @@ def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
     if normalized_uploader and re.fullmatch(r'[A-Z]{1,4}', normalized_uploader):
         return normalized_uploader
 
-    return normalize_display_kuerzel(shortcode)
+    return ''
 
 
 def resolve_drive_uploader(file_item):
@@ -1723,7 +1728,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Uploader
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Drive-Account
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1737,7 +1742,11 @@ def main():
                 entry.get('bearbeiter', ''),
                 '',
                 entry.get('gutachten_type', ''),
-                entry.get('uploader', ''),
+                resolve_uploader_kuerzel(
+                    entry.get('uploader', ''),
+                    entry.get('uploader_account', ''),
+                    entry.get('shortcode', ''),
+                ),
                 entry.get('uploader_account', ''),
             ]
             for entry in neue_eintraege
