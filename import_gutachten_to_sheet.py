@@ -190,6 +190,30 @@ def resolve_drive_owner_account(file_item):
     return account_id_from_drive_user(owners[0])
 
 
+def resolve_drive_modifier_account(file_item):
+    user = file_item.get('lastModifyingUser') or {}
+    account = account_id_from_drive_user(user)
+    if account and account not in IGNORED_UPLOADER_ACCOUNTS:
+        return account
+    return ''
+
+
+def resolve_drive_modifier_display(file_item):
+    user = file_item.get('lastModifyingUser') or {}
+    display = str(user.get('displayName') or '').strip()
+    if display and display.lower() not in IGNORED_UPLOADER_ACCOUNTS:
+        return display
+    return ''
+
+
+def drive_uploader_context(file_item):
+    return {
+        'owner_account': resolve_drive_owner_account(file_item),
+        'modifier_account': resolve_drive_modifier_account(file_item),
+        'modifier_display': resolve_drive_modifier_display(file_item),
+    }
+
+
 def normalize_display_kuerzel(value):
     raw = str(value or '').strip()
     if not raw:
@@ -208,35 +232,47 @@ def is_team_kuerzel(value):
     return normalize_display_kuerzel(value) in TEAM_KUERZEL
 
 
-def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
-    # Nur echte Team-Kürzel aus Ordnernamen, z. B. „… (RO)“ — nicht INFO o. Ä.
+def resolve_uploader_kuerzel(
+    uploader='',
+    account='',
+    shortcode='',
+    *,
+    modifier_account='',
+    import_log_value='',
+):
+    # 1) Ordner-Kürzel, 2) Owner, 3) letzter Bearbeiter, 4) Import-Log beim ersten Eintrag.
     folder_kuerzel = normalize_display_kuerzel(shortcode)
     if folder_kuerzel and is_team_kuerzel(folder_kuerzel):
         return folder_kuerzel
 
-    for key in (account, uploader):
+    for key in (account, modifier_account, uploader, import_log_value):
         normalized_key = str(key or '').strip().lower()
         if normalized_key in IGNORED_UPLOADER_ACCOUNTS:
             continue
         if normalized_key and normalized_key in UPLOADER_ALIASES:
             return normalize_display_kuerzel(UPLOADER_ALIASES[normalized_key])
 
-    normalized_uploader = normalize_display_kuerzel(uploader)
-    if normalized_uploader and is_team_kuerzel(normalized_uploader):
-        return normalized_uploader
+    for value in (uploader, import_log_value):
+        normalized_uploader = normalize_display_kuerzel(value)
+        if normalized_uploader and is_team_kuerzel(normalized_uploader):
+            return normalized_uploader
 
     return ''
 
 
+def resolve_uploader_from_drive(file_item, shortcode='', import_log_value=''):
+    context = drive_uploader_context(file_item)
+    return resolve_uploader_kuerzel(
+        uploader=context['modifier_display'],
+        account=context['owner_account'],
+        shortcode=shortcode,
+        modifier_account=context['modifier_account'],
+        import_log_value=import_log_value,
+    )
+
+
 def resolve_drive_uploader(file_item):
-    account = resolve_drive_owner_account(file_item)
-    user = file_item.get('lastModifyingUser') or {}
-    display = str(user.get('displayName') or '').strip()
-    if not display:
-        owners = file_item.get('owners') or []
-        if owners:
-            display = str(owners[0].get('displayName') or owners[0].get('emailAddress') or '').strip()
-    return resolve_uploader_kuerzel(display, account)
+    return resolve_uploader_from_drive(file_item)
 
 
 def sync_kuerzel_reference_table(sheets_service):
@@ -277,10 +313,19 @@ def build_drive_uploader_by_number(dateien):
             continue
         nummer, _ = extract_number_and_year(name)
         if nummer:
-            mapping[nummer] = {
-                'uploader': resolve_drive_uploader(file),
-                'account': resolve_drive_owner_account(file),
-            }
+            mapping[nummer] = drive_uploader_context(file)
+    return mapping
+
+
+def build_import_log_uploader_by_number(log_rows):
+    mapping = {}
+    for row in log_rows or []:
+        if len(row) < 4:
+            continue
+        nummer = normalize_number(row[2] if row else '')
+        hint = str(row[3] or '').strip()
+        if nummer and hint and nummer not in mapping:
+            mapping[nummer] = hint
     return mapping
 
 
@@ -323,8 +368,9 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:G'
-DASHBOARD_COLUMNS = 7
+DASHBOARD_DATA_RANGE = 'A1:F'
+LEGACY_DASHBOARD_READ_RANGE = 'A1:G'
+DASHBOARD_COLUMNS = 6
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -380,27 +426,35 @@ def is_likely_folder_shortcode(value):
     return bool(re.match(r'^[A-Z]{1,4}$', code))
 
 
+def is_likely_drive_folder_id(value):
+    token = str(value or '').strip()
+    return bool(token) and re.fullmatch(r'[a-zA-Z0-9_-]{20,}', token)
+
+
 def compact_dashboard_row_from_legacy(row):
     normalized = list(row or [])
-    while len(normalized) < DASHBOARD_COLUMNS:
+    while len(normalized) < 4:
         normalized.append('')
 
     status = str(normalized[2] or '').strip()
     col_d = str(normalized[3] or '').strip().lower()
-    col_e = str(normalized[4] or '').strip()
-    col_f = str(normalized[5] or '').strip()
+    col_e = str(normalized[4] or '').strip() if len(normalized) > 4 else ''
+    col_f = str(normalized[5] or '').strip() if len(normalized) > 5 else ''
+    col_g = str(normalized[6] or '').strip() if len(normalized) > 6 else ''
 
-    if is_likely_folder_shortcode(col_e):
-        uploader, account = '', col_f
-    elif col_f:
-        uploader, account = col_e, col_f
-    elif re.fullmatch(r'[a-z0-9._-]+', col_e.lower()) and ' ' not in col_e:
-        mapped = UPLOADER_ALIASES.get(col_e.lower(), '')
-        uploader, account = mapped, col_e
+    # 7 Spalten: E=Kürzel, F=Account (legacy), G=Drive-Ordner-ID
+    if col_g:
+        uploader = col_e
+        folder_id = col_g
+    elif is_likely_drive_folder_id(col_f):
+        uploader = col_e
+        folder_id = col_f
+    elif col_f and re.fullmatch(r'[a-z0-9._-]+', col_f.lower()) and ' ' not in col_f:
+        uploader = UPLOADER_ALIASES.get(col_e.lower(), col_e)
+        folder_id = ''
     else:
-        uploader, account = col_e, ''
-
-    folder_id = str(normalized[6] if len(normalized) > 6 else '').strip()
+        uploader = col_e
+        folder_id = col_f if is_likely_drive_folder_id(col_f) else ''
 
     if col_d in ('wert', 'kva', 'kasko', ''):
         return [
@@ -409,7 +463,6 @@ def compact_dashboard_row_from_legacy(row):
             status,
             col_d,
             uploader,
-            account,
             folder_id,
         ]
 
@@ -421,13 +474,12 @@ def compact_dashboard_row_from_legacy(row):
         status,
         str(normalized[4] or '').strip().lower(),
         str(normalized[3] or '').strip(),
-        account,
         folder_id,
     ]
 
 
 def dashboard_needs_column_migration(sheets_service):
-    rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
+    rows = read_sheet_values(sheets_service, TAB_NAME, LEGACY_DASHBOARD_READ_RANGE)
     if not rows:
         return False
     legacy_status_terms = (
@@ -449,7 +501,7 @@ def dashboard_needs_column_migration(sheets_service):
 
 
 def migrate_dashboard_columns_compact(sheets_service):
-    legacy_rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
+    legacy_rows = read_sheet_values(sheets_service, TAB_NAME, LEGACY_DASHBOARD_READ_RANGE)
     if not legacy_rows:
         return 0
 
@@ -460,7 +512,7 @@ def migrate_dashboard_columns_compact(sheets_service):
     ]
     sheets_service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!{DASHBOARD_DATA_RANGE}',
+        range=f'{TAB_NAME}!{LEGACY_DASHBOARD_READ_RANGE}',
     ).execute()
     if compacted:
         sheets_service.spreadsheets().values().update(
@@ -594,16 +646,19 @@ def sync_drive_folder_ids(sheets_service, dateien):
 
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!G1',
+        range=f'{TAB_NAME}!F1',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
     return marked
 
 
-def sync_uploaders(sheets_service, dateien):
+def sync_uploaders(sheets_service, dateien, log_rows=None):
     uploader_map = build_drive_uploader_by_number(dateien)
     shortcode_map = build_drive_shortcode_by_number(dateien)
+    import_log_map = build_import_log_uploader_by_number(
+        log_rows if log_rows is not None else read_import_log_rows(sheets_service)
+    )
     rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
     if not rows:
         return 0
@@ -613,17 +668,22 @@ def sync_uploaders(sheets_service, dateien):
     for row in rows:
         nummer = normalize_number(row[0] if row else '')
         entry = uploader_map.get(nummer, {})
-        raw_uploader = str(entry.get('uploader') or '').strip()
-        account = str(entry.get('account') or '').strip()
+        account = str(entry.get('owner_account') or '').strip()
         shortcode = shortcode_map.get(nummer, '')
-        uploader = resolve_uploader_kuerzel(raw_uploader, account, shortcode)
-        values.append([uploader, account])
-        if uploader or account:
+        uploader = resolve_uploader_kuerzel(
+            uploader=str(entry.get('modifier_display') or '').strip(),
+            account=account,
+            shortcode=shortcode,
+            modifier_account=str(entry.get('modifier_account') or '').strip(),
+            import_log_value=import_log_map.get(nummer, ''),
+        )
+        values.append([uploader])
+        if uploader:
             marked += 1
 
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!E1',
+        range=f'{TAB_NAME}!E1:E',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
@@ -843,10 +903,13 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
 
         gesehen.add(nummer)
         shortcode = extract_folder_shortcode(name)
+        context = drive_uploader_context(file)
         neue_nummern.append({
             'nummer': nummer,
-            'uploader': resolve_drive_uploader(file),
-            'uploader_account': resolve_drive_owner_account(file),
+            'uploader': resolve_uploader_from_drive(file, shortcode=shortcode),
+            'uploader_account': context['owner_account'],
+            'modifier_display': context['modifier_display'],
+            'modifier_account': context['modifier_account'],
             'shortcode': shortcode,
             'bearbeiter': resolve_auto_assign_bearbeiter(name),
             'gutachten_type': extract_gutachten_type(name),
@@ -1782,7 +1845,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Account, G=Drive-Ordner-ID
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Drive-Ordner-ID
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1797,11 +1860,11 @@ def main():
                 '',
                 entry.get('gutachten_type', ''),
                 resolve_uploader_kuerzel(
-                    entry.get('uploader', ''),
+                    entry.get('modifier_display', ''),
                     entry.get('uploader_account', ''),
                     entry.get('shortcode', ''),
+                    modifier_account=entry.get('modifier_account', ''),
                 ),
-                entry.get('uploader_account', ''),
                 entry.get('folder_id', ''),
             ]
             for entry in neue_eintraege
@@ -1809,7 +1872,7 @@ def main():
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:G{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1820,21 +1883,20 @@ def main():
     else:
         print("✅ Keine neuen Einträge eingetragen.")
 
+    log_rows = read_import_log_rows(sheets_service)
     try:
         sync_sheet_assignees(sheets_service, dateien)
         wert_count = sync_gutachten_types(sheets_service, dateien)
         if wert_count:
             print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte D).")
-        uploader_count = sync_uploaders(sheets_service, dateien)
+        uploader_count = sync_uploaders(sheets_service, dateien, log_rows=log_rows)
         if uploader_count:
-            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E/F).")
+            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E).")
         folder_count = sync_drive_folder_ids(sheets_service, dateien)
         if folder_count:
-            print(f"ℹ️ Drive-Ordner-IDs aktualisiert: {folder_count} markiert (Spalte G).")
+            print(f"ℹ️ Drive-Ordner-IDs aktualisiert: {folder_count} markiert (Spalte F).")
     except HttpError as exc:
         print(f'⚠️ Gutachten-Typen/Uploader/Ordner-IDs konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
-
-    log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
     imports_today = count_imports_for_date(log_rows, today)
     sheet_numbers = {normalize_number(row[0]) for row in filtered_rows if row}
