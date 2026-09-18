@@ -100,6 +100,7 @@ UPLOADER_ALIASES = {
     'mohamed zahreddine': 'M',
     'mohamad zahreddine': 'M',
     'mohammed zahreddine': 'M',
+    'hj251092': 'HJ',
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
@@ -149,7 +150,26 @@ SHEET_ASSIGNEE_ALIASES = {
 }
 
 
+def resolve_drive_uploader_account(file_item):
+    user = file_item.get('lastModifyingUser') or {}
+    email = str(user.get('emailAddress') or '').strip().lower()
+    if email and '@' in email:
+        return email.split('@', 1)[0]
+    display = str(user.get('displayName') or '').strip().lower()
+    if display and re.fullmatch(r'[a-z0-9._-]+', display):
+        return display
+    owners = file_item.get('owners') or []
+    if owners:
+        owner_email = str(owners[0].get('emailAddress') or '').strip().lower()
+        if owner_email and '@' in owner_email:
+            return owner_email.split('@', 1)[0]
+    return ''
+
+
 def resolve_drive_uploader(file_item):
+    account = resolve_drive_uploader_account(file_item)
+    if account and account in UPLOADER_ALIASES:
+        return UPLOADER_ALIASES[account]
     user = file_item.get('lastModifyingUser') or {}
     display = str(user.get('displayName') or '').strip()
     if not display:
@@ -157,7 +177,7 @@ def resolve_drive_uploader(file_item):
         if owners:
             display = str(owners[0].get('displayName') or owners[0].get('emailAddress') or '').strip()
     if not display:
-        return 'Unbekannt'
+        return ''
     return UPLOADER_ALIASES.get(display.lower(), display)
 
 
@@ -188,7 +208,10 @@ def build_drive_uploader_by_number(dateien):
             continue
         nummer, _ = extract_number_and_year(name)
         if nummer:
-            mapping[nummer] = resolve_drive_uploader(file)
+            mapping[nummer] = {
+                'uploader': resolve_drive_uploader(file),
+                'account': resolve_drive_uploader_account(file),
+            }
     return mapping
 
 
@@ -218,8 +241,8 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:E'
-DASHBOARD_COLUMNS = 5
+DASHBOARD_DATA_RANGE = 'A1:F'
+DASHBOARD_COLUMNS = 6
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -275,20 +298,23 @@ def is_likely_folder_shortcode(value):
 
 def compact_dashboard_row_from_legacy(row):
     normalized = list(row or [])
-    while len(normalized) < 5:
+    while len(normalized) < 6:
         normalized.append('')
 
     status = str(normalized[2] or '').strip()
     col_d = str(normalized[3] or '').strip().lower()
     col_e = str(normalized[4] or '').strip()
-    col_f = str(normalized[5] or '').strip() if len(normalized) > 5 else ''
+    col_f = str(normalized[5] or '').strip()
 
-    if col_f:
-        uploader = col_f
-    elif is_likely_folder_shortcode(col_e):
-        uploader = ''
+    if is_likely_folder_shortcode(col_e):
+        uploader, account = '', col_f
+    elif col_f:
+        uploader, account = col_e, col_f
+    elif re.fullmatch(r'[a-z0-9._-]+', col_e.lower()) and ' ' not in col_e:
+        mapped = UPLOADER_ALIASES.get(col_e.lower(), '')
+        uploader, account = mapped, col_e
     else:
-        uploader = col_e
+        uploader, account = col_e, ''
 
     if col_d in ('wert', 'kva', ''):
         return [
@@ -297,6 +323,7 @@ def compact_dashboard_row_from_legacy(row):
             status,
             col_d,
             uploader,
+            account,
         ]
 
     if not status and len(normalized) > 7:
@@ -307,6 +334,7 @@ def compact_dashboard_row_from_legacy(row):
         status,
         str(normalized[4] or '').strip().lower(),
         str(normalized[3] or '').strip(),
+        account,
     ]
 
 
@@ -474,9 +502,11 @@ def sync_uploaders(sheets_service, dateien):
     marked = 0
     for row in rows:
         nummer = normalize_number(row[0] if row else '')
-        uploader = uploader_map.get(nummer, '')
-        values.append([uploader])
-        if uploader:
+        entry = uploader_map.get(nummer, {})
+        uploader = str(entry.get('uploader') or '').strip()
+        account = str(entry.get('account') or '').strip()
+        values.append([uploader, account])
+        if uploader or account:
             marked += 1
 
     sheets_service.spreadsheets().values().update(
@@ -704,6 +734,7 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
         neue_nummern.append({
             'nummer': nummer,
             'uploader': resolve_drive_uploader(file),
+            'uploader_account': resolve_drive_uploader_account(file),
             'shortcode': shortcode,
             'bearbeiter': resolve_auto_assign_bearbeiter(name),
             'gutachten_type': extract_gutachten_type(name),
@@ -1648,13 +1679,14 @@ def main():
                 '',
                 entry.get('gutachten_type', ''),
                 entry.get('uploader', ''),
+                entry.get('uploader_account', ''),
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1672,7 +1704,7 @@ def main():
             print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte D).")
         uploader_count = sync_uploaders(sheets_service, dateien)
         if uploader_count:
-            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E).")
+            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E/F).")
     except HttpError as exc:
         print(f'⚠️ Gutachten-Typen/Uploader konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
