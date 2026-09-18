@@ -218,8 +218,8 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:F'
-DASHBOARD_COLUMNS = 6
+DASHBOARD_DATA_RANGE = 'A1:E'
+DASHBOARD_COLUMNS = 5
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -268,39 +268,45 @@ def is_dashboard_header_row(row):
     return False
 
 
+def is_likely_folder_shortcode(value):
+    code = str(value or '').strip().upper()
+    return bool(re.match(r'^[A-Z]{1,4}$', code))
+
+
 def compact_dashboard_row_from_legacy(row):
     normalized = list(row or [])
-    while len(normalized) < DASHBOARD_COLUMNS:
+    while len(normalized) < 5:
         normalized.append('')
 
     status = str(normalized[2] or '').strip()
     col_d = str(normalized[3] or '').strip().lower()
-    if col_d in ('wert', 'kva', ''):
+    col_e = str(normalized[4] or '').strip()
+    col_f = str(normalized[5] or '').strip() if len(normalized) > 5 else ''
+
+    if col_f:
+        uploader = col_f
+    elif is_likely_folder_shortcode(col_e):
         uploader = ''
-        if len(normalized) > 5:
-            uploader = str(normalized[5] or '').strip()
+    else:
+        uploader = col_e
+
+    if col_d in ('wert', 'kva', ''):
         return [
             normalized[0],
             normalized[1],
             status,
             col_d,
-            str(normalized[4] or '').strip(),
             uploader,
         ]
 
-    while len(normalized) < 6:
-        normalized.append('')
     if not status and len(normalized) > 7:
         status = str(normalized[7] or '').strip()
-    shortcode = str(normalized[5] or '').strip()
-    legacy_uploader = str(normalized[3] or '').strip()
     return [
         normalized[0],
         normalized[1],
         status,
         str(normalized[4] or '').strip().lower(),
-        shortcode,
-        legacy_uploader,
+        str(normalized[3] or '').strip(),
     ]
 
 
@@ -312,13 +318,19 @@ def dashboard_needs_column_migration(sheets_service):
     if any(str(row[0]).strip() for row in f_values if row):
         return True
     for row in rows:
+        normalized = list(row or [])
+        if len(normalized) > 5:
+            return True
+    for row in rows:
         if is_dashboard_header_row(row):
             return True
         normalized = list(row or [])
-        while len(normalized) < 4:
+        while len(normalized) < 5:
             normalized.append('')
         col_d = str(normalized[3] or '').strip().lower()
         if col_d and col_d not in ('wert', 'kva'):
+            return True
+        if is_likely_folder_shortcode(normalized[4]):
             return True
     return False
 
@@ -391,17 +403,19 @@ def is_recognized_sheet_assignee(value):
     return False
 
 
-def sync_sheet_assignees(sheets_service):
+def sync_sheet_assignees(sheets_service, dateien=None):
     rows = read_sheet_values(sheets_service, TAB_NAME, DASHBOARD_DATA_RANGE)
     if not rows:
         return 0
 
+    shortcode_map = build_drive_shortcode_by_number(dateien or [])
     updated = 0
     cleaned = []
     for row in rows:
         normalized = dashboard_row_for_sheet(row)
         current = str(normalized[1] or '').strip()
-        shortcode = str(normalized[4] or '').strip().upper()
+        nummer = normalize_number(normalized[0])
+        shortcode = shortcode_map.get(nummer, '')
         next_assignee = normalize_sheet_assignee(current)
         if not next_assignee and not current:
             next_assignee = AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
@@ -450,30 +464,6 @@ def sanitize_sheet_assignees(sheets_service):
     return removed
 
 
-def sync_folder_shortcodes(sheets_service, dateien):
-    shortcode_map = build_drive_shortcode_by_number(dateien)
-    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
-    if not rows:
-        return 0
-
-    values = []
-    marked = 0
-    for row in rows:
-        nummer = normalize_number(row[0] if row else '')
-        shortcode = shortcode_map.get(nummer, '')
-        values.append([shortcode])
-        if shortcode:
-            marked += 1
-
-    sheets_service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!E1',
-        valueInputOption='RAW',
-        body={'values': values},
-    ).execute()
-    return marked
-
-
 def sync_uploaders(sheets_service, dateien):
     uploader_map = build_drive_uploader_by_number(dateien)
     rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
@@ -491,7 +481,7 @@ def sync_uploaders(sheets_service, dateien):
 
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f'{TAB_NAME}!F1',
+        range=f'{TAB_NAME}!E1',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
@@ -1643,7 +1633,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Uploader (sync)
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Uploader
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1657,7 +1647,6 @@ def main():
                 entry.get('bearbeiter', ''),
                 '',
                 entry.get('gutachten_type', ''),
-                entry.get('shortcode', ''),
                 entry.get('uploader', ''),
             ]
             for entry in neue_eintraege
@@ -1665,7 +1654,7 @@ def main():
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1677,18 +1666,15 @@ def main():
         print("✅ Keine neuen Einträge eingetragen.")
 
     try:
-        sync_sheet_assignees(sheets_service)
+        sync_sheet_assignees(sheets_service, dateien)
         wert_count = sync_gutachten_types(sheets_service, dateien)
         if wert_count:
             print(f"ℹ️ Gutachten-Typen aktualisiert: {wert_count} markiert (Spalte D).")
-        kurzel_count = sync_folder_shortcodes(sheets_service, dateien)
-        if kurzel_count:
-            print(f"ℹ️ Ordner-Kürzel aktualisiert: {kurzel_count} markiert (Spalte E).")
         uploader_count = sync_uploaders(sheets_service, dateien)
         if uploader_count:
-            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte F).")
+            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte E).")
     except HttpError as exc:
-        print(f'⚠️ Gutachten-Typen/Kürzel/Uploader konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
+        print(f'⚠️ Gutachten-Typen/Uploader konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
     log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
