@@ -78,33 +78,48 @@ IGNORED_PREFIXES = parse_csv_tokens(
 )
 
 UPLOADER_ALIASES = {
-    'hassankhodr978': 'Hassan',
-    'hassan khodr': 'Hassan',
-    'hassan souleiman': 'Hassan',
+    'hassankhodr978': 'HK',
+    'hassan khodr': 'HK',
+    'hassan souleiman': 'HA',
     'svs-app-864ed': 'SVS App',
     'dashboard-bot@ux-dashboard-465511.iam.gserviceaccount.com': 'Bot',
-    'hadi': 'Hadi',
-    'hadi issa': 'Hadi',
-    'ramazan': 'Ramazan',
-    'ramazan dag': 'Ramazan',
-    'robar': 'Robar',
-    'robar kassem': 'Robar',
-    'robar kassam': 'Robar',
-    'osama': 'Osama',
-    'osama sleiman': 'Osama',
-    'osama souleiman': 'Osama',
+    'ramazan': 'RA',
+    'ramazan dag': 'RA',
+    'robar': 'RO',
+    'robar kassem': 'RO',
+    'robar kassam': 'RO',
+    'osama': 'OS',
+    'osama sleiman': 'OS',
+    'osama souleiman': 'OS',
     'hussein jaber': 'HJ',
     'hussein selman': 'B',
+    'berliner': 'B',
+    'diyar': 'ID',
+    'izzedin': 'IZ',
     'hussein souleiman': 'HU',
     'hussein suleiman': 'HU',
-    'mohamed zahreddine': 'M',
-    'mohamad zahreddine': 'M',
-    'mohammed zahreddine': 'M',
+    'mohamed zahreddine': 'MZ',
+    'mohamad zahreddine': 'MZ',
+    'mohammed zahreddine': 'MZ',
     'hj251092': 'HJ',
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
-# Referenz ohne Auto-Zuweisung: DI=Diyar, IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr, HU=Hussein Souleiman
+# Referenz ohne Auto-Zuweisung: ID=Diyar (Ordner DI), IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr, HU=Hussein Souleiman
+KUERZEL_REFERENCE_ROWS = [
+    ['Kürzel', 'Person'],
+    ['B', 'Berliner (HB)'],
+    ['HU', 'Hussein Souleiman'],
+    ['HJ', 'Hussein Jaber'],
+    ['HK', 'Hassan Khodr'],
+    ['HA', 'Hassan Souleiman'],
+    ['RO', 'Robar'],
+    ['RA', 'Ramazan'],
+    ['OS', 'Osama'],
+    ['MZ', 'Mohamed Zahreddine'],
+    ['IZ', 'Izzedin'],
+    ['ID', 'Diyar'],
+]
 AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
     'RO': 'Robar',
     'RA': 'Ramazan',
@@ -166,10 +181,24 @@ def resolve_drive_uploader_account(file_item):
     return ''
 
 
+def normalize_display_kuerzel(value):
+    raw = str(value or '').strip()
+    if not raw:
+        return ''
+    code = raw.upper()
+    if code == 'DI':
+        return 'ID'
+    if code in ('HB', 'BERLINER', 'BERLIN'):
+        return 'B'
+    if re.fullmatch(r'[A-Z]{1,4}', code):
+        return code
+    return raw
+
+
 def resolve_drive_uploader(file_item):
     account = resolve_drive_uploader_account(file_item)
     if account and account in UPLOADER_ALIASES:
-        return UPLOADER_ALIASES[account]
+        return normalize_display_kuerzel(UPLOADER_ALIASES[account])
     user = file_item.get('lastModifyingUser') or {}
     display = str(user.get('displayName') or '').strip()
     if not display:
@@ -178,7 +207,17 @@ def resolve_drive_uploader(file_item):
             display = str(owners[0].get('displayName') or owners[0].get('emailAddress') or '').strip()
     if not display:
         return ''
-    return UPLOADER_ALIASES.get(display.lower(), display)
+    mapped = UPLOADER_ALIASES.get(display.lower(), display)
+    return normalize_display_kuerzel(mapped)
+
+
+def sync_kuerzel_reference_table(sheets_service):
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{STATISTIK_TAB}!L1',
+        valueInputOption='RAW',
+        body={'values': KUERZEL_REFERENCE_ROWS},
+    ).execute()
 
 
 def extract_folder_shortcode(folder_name):
@@ -195,6 +234,8 @@ def extract_gutachten_type(folder_name):
     lower_name = str(folder_name or '').strip().lower()
     if 'wertgutachten' in lower_name:
         return 'wert'
+    if 'kaskogutachten' in lower_name or re.search(r'\bkasko\b', lower_name):
+        return 'kasko'
     if 'kostenvoranschlag' in lower_name or re.search(r'\bkva\b', lower_name):
         return 'kva'
     return ''
@@ -316,7 +357,7 @@ def compact_dashboard_row_from_legacy(row):
     else:
         uploader, account = col_e, ''
 
-    if col_d in ('wert', 'kva', ''):
+    if col_d in ('wert', 'kva', 'kasko', ''):
         return [
             normalized[0],
             normalized[1],
@@ -356,7 +397,7 @@ def dashboard_needs_column_migration(sheets_service):
         while len(normalized) < 5:
             normalized.append('')
         col_d = str(normalized[3] or '').strip().lower()
-        if col_d and col_d not in ('wert', 'kva'):
+        if col_d and col_d not in ('wert', 'kva', 'kasko'):
             return True
         if is_likely_folder_shortcode(normalized[4]):
             return True
@@ -494,6 +535,7 @@ def sanitize_sheet_assignees(sheets_service):
 
 def sync_uploaders(sheets_service, dateien):
     uploader_map = build_drive_uploader_by_number(dateien)
+    shortcode_map = build_drive_shortcode_by_number(dateien)
     rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
     if not rows:
         return 0
@@ -505,6 +547,10 @@ def sync_uploaders(sheets_service, dateien):
         entry = uploader_map.get(nummer, {})
         uploader = str(entry.get('uploader') or '').strip()
         account = str(entry.get('account') or '').strip()
+        if not uploader:
+            uploader = normalize_display_kuerzel(shortcode_map.get(nummer, ''))
+        else:
+            uploader = normalize_display_kuerzel(uploader)
         values.append([uploader, account])
         if uploader or account:
             marked += 1
@@ -834,6 +880,7 @@ def ensure_statistik_tab(sheets_service):
     ).execute()
     migrate_statistik_run_time_cell(sheets_service)
     compact_import_log(sheets_service)
+    sync_kuerzel_reference_table(sheets_service)
 
 
 def migrate_statistik_data(sheets_service):
@@ -941,7 +988,11 @@ def append_import_log(sheets_service, entries):
         if not normalized or normalized in logged_ever:
             continue
         logged_ever.add(normalized)
-        to_log.append({'nummer': nummer, 'uploader': uploader, 'shortcode': shortcode})
+        to_log.append({
+            'nummer': nummer,
+            'uploader': normalize_display_kuerzel(uploader),
+            'shortcode': normalize_display_kuerzel(shortcode),
+        })
 
     if not to_log:
         return
