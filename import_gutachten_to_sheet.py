@@ -102,6 +102,9 @@ UPLOADER_ALIASES = {
     'mohamad zahreddine': 'MZ',
     'mohammed zahreddine': 'MZ',
     'hj251092': 'HJ',
+    'ramadandag47': 'RA',
+    'hussein_s': 'HU',
+    'gutachter.mohamed': 'MZ',
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
@@ -195,20 +198,30 @@ def normalize_display_kuerzel(value):
     return raw
 
 
+def resolve_uploader_kuerzel(uploader='', account='', shortcode=''):
+    for key in (account, uploader):
+        normalized_key = str(key or '').strip().lower()
+        if normalized_key and normalized_key in UPLOADER_ALIASES:
+            return normalize_display_kuerzel(UPLOADER_ALIASES[normalized_key])
+
+    normalized_uploader = normalize_display_kuerzel(uploader)
+    if normalized_uploader and normalized_uploader != str(uploader or '').strip():
+        return normalized_uploader
+    if normalized_uploader and re.fullmatch(r'[A-Z]{1,4}', normalized_uploader):
+        return normalized_uploader
+
+    return normalize_display_kuerzel(shortcode)
+
+
 def resolve_drive_uploader(file_item):
     account = resolve_drive_uploader_account(file_item)
-    if account and account in UPLOADER_ALIASES:
-        return normalize_display_kuerzel(UPLOADER_ALIASES[account])
     user = file_item.get('lastModifyingUser') or {}
     display = str(user.get('displayName') or '').strip()
     if not display:
         owners = file_item.get('owners') or []
         if owners:
             display = str(owners[0].get('displayName') or owners[0].get('emailAddress') or '').strip()
-    if not display:
-        return ''
-    mapped = UPLOADER_ALIASES.get(display.lower(), display)
-    return normalize_display_kuerzel(mapped)
+    return resolve_uploader_kuerzel(display, account)
 
 
 def sync_kuerzel_reference_table(sheets_service):
@@ -383,24 +396,21 @@ def dashboard_needs_column_migration(sheets_service):
     rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:F')
     if not rows:
         return False
-    f_values = read_sheet_values(sheets_service, TAB_NAME, 'F1:F')
-    if any(str(row[0]).strip() for row in f_values if row):
-        return True
-    for row in rows:
-        normalized = list(row or [])
-        if len(normalized) > 5:
-            return True
+    legacy_status_terms = (
+        'erstellt', 'vollständig', 'unvollständig', 'geprüft', 'versendet',
+    )
     for row in rows:
         if is_dashboard_header_row(row):
             return True
         normalized = list(row or [])
-        while len(normalized) < 5:
+        if len(normalized) > DASHBOARD_COLUMNS:
+            return True
+        while len(normalized) < 4:
             normalized.append('')
         col_d = str(normalized[3] or '').strip().lower()
-        if col_d and col_d not in ('wert', 'kva', 'kasko'):
-            return True
-        if is_likely_folder_shortcode(normalized[4]):
-            return True
+        if col_d and col_d not in ('wert', 'kva', 'kasko', ''):
+            if any(term in col_d for term in legacy_status_terms):
+                return True
     return False
 
 
@@ -545,12 +555,10 @@ def sync_uploaders(sheets_service, dateien):
     for row in rows:
         nummer = normalize_number(row[0] if row else '')
         entry = uploader_map.get(nummer, {})
-        uploader = str(entry.get('uploader') or '').strip()
+        raw_uploader = str(entry.get('uploader') or '').strip()
         account = str(entry.get('account') or '').strip()
-        if not uploader:
-            uploader = normalize_display_kuerzel(shortcode_map.get(nummer, ''))
-        else:
-            uploader = normalize_display_kuerzel(uploader)
+        shortcode = shortcode_map.get(nummer, '')
+        uploader = resolve_uploader_kuerzel(raw_uploader, account, shortcode)
         values.append([uploader, account])
         if uploader or account:
             marked += 1
