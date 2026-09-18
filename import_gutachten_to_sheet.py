@@ -79,8 +79,27 @@ IGNORED_PREFIXES = parse_csv_tokens(
 
 UPLOADER_ALIASES = {
     'hassankhodr978': 'Hassan',
+    'hassan khodr': 'Hassan',
+    'hassan souleiman': 'Hassan',
     'svs-app-864ed': 'SVS App',
     'dashboard-bot@ux-dashboard-465511.iam.gserviceaccount.com': 'Bot',
+    'hadi': 'Hadi',
+    'hadi issa': 'Hadi',
+    'ramazan': 'Ramazan',
+    'ramazan dag': 'Ramazan',
+    'robar': 'Robar',
+    'robar kassem': 'Robar',
+    'robar kassam': 'Robar',
+    'osama': 'Osama',
+    'osama sleiman': 'Osama',
+    'osama souleiman': 'Osama',
+    'hussein jaber': 'HJ',
+    'hussein selman': 'B',
+    'hussein souleiman': 'HU',
+    'hussein suleiman': 'HU',
+    'mohamed zahreddine': 'M',
+    'mohamad zahreddine': 'M',
+    'mohammed zahreddine': 'M',
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
@@ -161,6 +180,18 @@ def extract_gutachten_type(folder_name):
     return ''
 
 
+def build_drive_uploader_by_number(dateien):
+    mapping = {}
+    for file in dateien:
+        name = file.get('name', '').strip()
+        if not is_valid_drive_entry(name):
+            continue
+        nummer, _ = extract_number_and_year(name)
+        if nummer:
+            mapping[nummer] = resolve_drive_uploader(file)
+    return mapping
+
+
 def build_drive_type_by_number(dateien):
     mapping = {}
     for file in dateien:
@@ -187,8 +218,8 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:E'
-DASHBOARD_COLUMNS = 5
+DASHBOARD_DATA_RANGE = 'A1:F'
+DASHBOARD_COLUMNS = 6
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -197,6 +228,7 @@ DASHBOARD_HEADER_LABELS = frozenset({
     'gutachten_typ',
     'kürzel',
     'kurzel',
+    'hochgeladen_von',
     'eingang',
     'nummer',
 })
@@ -244,12 +276,16 @@ def compact_dashboard_row_from_legacy(row):
     status = str(normalized[2] or '').strip()
     col_d = str(normalized[3] or '').strip().lower()
     if col_d in ('wert', 'kva', ''):
+        uploader = ''
+        if len(normalized) > 5:
+            uploader = str(normalized[5] or '').strip()
         return [
             normalized[0],
             normalized[1],
             status,
             col_d,
             str(normalized[4] or '').strip(),
+            uploader,
         ]
 
     while len(normalized) < 6:
@@ -257,12 +293,14 @@ def compact_dashboard_row_from_legacy(row):
     if not status and len(normalized) > 7:
         status = str(normalized[7] or '').strip()
     shortcode = str(normalized[5] or '').strip()
+    legacy_uploader = str(normalized[3] or '').strip()
     return [
         normalized[0],
         normalized[1],
         status,
         str(normalized[4] or '').strip().lower(),
         shortcode,
+        legacy_uploader,
     ]
 
 
@@ -430,6 +468,30 @@ def sync_folder_shortcodes(sheets_service, dateien):
     sheets_service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range=f'{TAB_NAME}!E1',
+        valueInputOption='RAW',
+        body={'values': values},
+    ).execute()
+    return marked
+
+
+def sync_uploaders(sheets_service, dateien):
+    uploader_map = build_drive_uploader_by_number(dateien)
+    rows = read_sheet_values(sheets_service, TAB_NAME, 'A1:A')
+    if not rows:
+        return 0
+
+    values = []
+    marked = 0
+    for row in rows:
+        nummer = normalize_number(row[0] if row else '')
+        uploader = uploader_map.get(nummer, '')
+        values.append([uploader])
+        if uploader:
+            marked += 1
+
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'{TAB_NAME}!F1',
         valueInputOption='RAW',
         body={'values': values},
     ).execute()
@@ -1581,7 +1643,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter (aus Kürzel), C=Status, D=Typ, E=Kürzel
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Uploader (sync)
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1596,13 +1658,14 @@ def main():
                 '',
                 entry.get('gutachten_type', ''),
                 entry.get('shortcode', ''),
+                entry.get('uploader', ''),
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:E{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
@@ -1621,8 +1684,11 @@ def main():
         kurzel_count = sync_folder_shortcodes(sheets_service, dateien)
         if kurzel_count:
             print(f"ℹ️ Ordner-Kürzel aktualisiert: {kurzel_count} markiert (Spalte E).")
+        uploader_count = sync_uploaders(sheets_service, dateien)
+        if uploader_count:
+            print(f"ℹ️ Uploader aktualisiert: {uploader_count} markiert (Spalte F).")
     except HttpError as exc:
-        print(f'⚠️ Gutachten-Typen/Kürzel konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
+        print(f'⚠️ Gutachten-Typen/Kürzel/Uploader konnten nicht aktualisiert werden: {exc}', file=sys.stderr)
 
     log_rows = read_import_log_rows(sheets_service)
     today = local_now().strftime('%Y-%m-%d')
