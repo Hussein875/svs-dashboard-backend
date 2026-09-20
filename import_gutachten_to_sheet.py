@@ -94,7 +94,7 @@ UPLOADER_ALIASES = {
     'hussein jaber': 'HJ',
     'hussein selman': 'B',
     'berliner': 'B',
-    'diyar': 'ID',
+    'diyar': 'DI',
     'izzedin': 'IZ',
     'hussein souleiman': 'HU',
     'hussein suleiman': 'HU',
@@ -105,10 +105,13 @@ UPLOADER_ALIASES = {
     'ramadandag47': 'RA',
     'hussein_s': 'HU',
     'gutachter.mohamed': 'MZ',
+    'tolga': 'TT',
+    'tt': 'TT',
+    'tolgatanimaz': 'TT',
 }
 
 # Kürzel in Klammern am Ordnerende → Spalte B (kurze Team-Namen).
-# Referenz ohne Auto-Zuweisung: ID=Diyar (Ordner DI), IZ=Izzedin, HA=Hassan Souleiman, HK=Hassan Khodr, HU=Hussein Souleiman
+# Referenz ohne Auto-Zuweisung: DI=Diyar, IZ=Izzedin, TT=Tolga, HA=Hassan Souleiman, HK=Hassan Khodr, HU=Hussein Souleiman
 KUERZEL_REFERENCE_ROWS = [
     ['Kürzel', 'Person'],
     ['B', 'Berliner (HB)'],
@@ -121,7 +124,8 @@ KUERZEL_REFERENCE_ROWS = [
     ['OS', 'Osama'],
     ['MZ', 'Mohamed Zahreddine'],
     ['IZ', 'Izzedin'],
-    ['ID', 'Diyar'],
+    ['DI', 'Diyar'],
+    ['TT', 'Tolga'],
 ]
 TEAM_KUERZEL = frozenset(
     row[0] for row in KUERZEL_REFERENCE_ROWS[1:]
@@ -219,8 +223,8 @@ def normalize_display_kuerzel(value):
     if not raw:
         return ''
     code = raw.upper()
-    if code == 'DI':
-        return 'ID'
+    if code == 'ID':
+        return 'DI'
     if code in ('HB', 'BERLINER', 'BERLIN'):
         return 'B'
     if re.fullmatch(r'[A-Z]{1,4}', code):
