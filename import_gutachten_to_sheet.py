@@ -136,8 +136,10 @@ AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
     'RA': 'Ramazan',
     'OS': 'Osama',
     'HB': 'B',
+    'B': 'B',
     'HJ': 'HJ',
     'MZ': 'M',
+    'M': 'M',
 }
 
 SHEET_ASSIGNEE_ALIASES = {
@@ -153,6 +155,10 @@ SHEET_ASSIGNEE_ALIASES = {
     'hj': 'HJ',
     'hussein jaber': 'HJ',
     'b': 'B',
+    'berlin': 'B',
+    'berliner': 'B',
+    'hannover': 'HJ',
+    'nordhorn': 'M',
     'hussein selman': 'B',
     'hu': 'HU',
     'hussein souleiman': 'HU',
@@ -294,6 +300,22 @@ def extract_folder_shortcode(folder_name):
 def resolve_auto_assign_bearbeiter(folder_name):
     shortcode = extract_folder_shortcode(folder_name)
     return AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
+
+
+def resolve_bearbeiter_from_uploader_kuerzel(kuerzel):
+    code = normalize_display_kuerzel(kuerzel)
+    if not code:
+        return ''
+    return AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(code, '')
+
+
+def resolve_bearbeiter_for_new_entry(folder_name, file_item, shortcode=''):
+    bearbeiter = resolve_auto_assign_bearbeiter(folder_name)
+    if bearbeiter:
+        return bearbeiter
+    folder_shortcode = shortcode or extract_folder_shortcode(folder_name)
+    kuerzel = resolve_uploader_from_drive(file_item, shortcode=folder_shortcode)
+    return resolve_bearbeiter_from_uploader_kuerzel(kuerzel)
 
 
 def extract_gutachten_type(folder_name):
@@ -576,6 +598,8 @@ def sync_sheet_assignees(sheets_service, dateien=None):
         return 0
 
     shortcode_map = build_drive_shortcode_by_number(dateien or [])
+    uploader_map = build_drive_uploader_by_number(dateien or [])
+    import_log_map = build_import_log_uploader_by_number(read_import_log_rows(sheets_service))
     updated = 0
     cleaned = []
     for row in rows:
@@ -586,6 +610,16 @@ def sync_sheet_assignees(sheets_service, dateien=None):
         next_assignee = normalize_sheet_assignee(current)
         if not next_assignee and not current:
             next_assignee = AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER.get(shortcode, '')
+        if not next_assignee and not current:
+            entry = uploader_map.get(nummer, {})
+            kuerzel = resolve_uploader_kuerzel(
+                uploader=str(entry.get('modifier_display') or '').strip(),
+                account=str(entry.get('owner_account') or '').strip(),
+                shortcode=shortcode,
+                modifier_account=str(entry.get('modifier_account') or '').strip(),
+                import_log_value=import_log_map.get(nummer, ''),
+            )
+            next_assignee = resolve_bearbeiter_from_uploader_kuerzel(kuerzel)
         if next_assignee != current:
             updated += 1
         normalized[1] = next_assignee
@@ -913,7 +947,7 @@ def find_new_entries(dateien, filtered_rows, skip_numbers=None):
             'modifier_display': context['modifier_display'],
             'modifier_account': context['modifier_account'],
             'shortcode': shortcode,
-            'bearbeiter': resolve_auto_assign_bearbeiter(name),
+            'bearbeiter': resolve_bearbeiter_for_new_entry(name, file, shortcode=shortcode),
             'gutachten_type': extract_gutachten_type(name),
             'folder_id': str(file.get('id') or '').strip(),
         })
