@@ -141,8 +141,6 @@ AUTO_ASSIGN_SHORTCODE_TO_BEARBEITER = {
 }
 
 SHEET_ASSIGNEE_ALIASES = {
-    'hadi': 'Hadi',
-    'hadi issa': 'Hadi',
     'ramazan': 'Ramazan',
     'ramazan dag': 'Ramazan',
     'robar': 'Robar',
