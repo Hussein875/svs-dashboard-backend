@@ -392,9 +392,9 @@ def build_drive_shortcode_by_number(dateien):
     return mapping
 
 
-DASHBOARD_DATA_RANGE = 'A1:F'
+DASHBOARD_DATA_RANGE = 'A1:G'
 LEGACY_DASHBOARD_READ_RANGE = 'A1:G'
-DASHBOARD_COLUMNS = 6
+DASHBOARD_COLUMNS = 7
 DASHBOARD_HEADER_LABELS = frozenset({
     'aktennummer',
     'bearbeiter',
@@ -406,6 +406,8 @@ DASHBOARD_HEADER_LABELS = frozenset({
     'hochgeladen_von',
     'drive_ordner_id',
     'folder_id',
+    'ki',
+    'ki_vorgemerkt',
     'eingang',
     'nummer',
 })
@@ -480,6 +482,10 @@ def compact_dashboard_row_from_legacy(row):
         uploader = col_e
         folder_id = col_f if is_likely_drive_folder_id(col_f) else ''
 
+    ki_flag = ''
+    if col_g and not is_likely_drive_folder_id(col_g):
+        ki_flag = col_g
+
     if col_d in ('wert', 'kva', 'kasko', ''):
         return [
             normalized[0],
@@ -488,6 +494,7 @@ def compact_dashboard_row_from_legacy(row):
             col_d,
             uploader,
             folder_id,
+            ki_flag,
         ]
 
     if not status and len(normalized) > 7:
@@ -499,6 +506,7 @@ def compact_dashboard_row_from_legacy(row):
         str(normalized[4] or '').strip().lower(),
         str(normalized[3] or '').strip(),
         folder_id,
+        ki_flag,
     ]
 
 
@@ -1881,7 +1889,7 @@ def main():
     # 6. Neue Einträge aus Google Drive abrufen
     neue_eintraege = find_new_entries(dateien, filtered_rows)
 
-    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Drive-Ordner-ID
+    # 7. Neue Einträge: A=Nummer, B=Bearbeiter, C=Status, D=Typ, E=Kürzel, F=Drive-Ordner-ID, G=KI
     startzeile = len(filtered_rows) + 1
     if neue_eintraege:
         for entry in neue_eintraege:
@@ -1902,13 +1910,14 @@ def main():
                     modifier_account=entry.get('modifier_account', ''),
                 ),
                 entry.get('folder_id', ''),
+                '',
             ]
             for entry in neue_eintraege
         ]
         endzeile = startzeile + len(values) - 1
         sheet.values().update(
             spreadsheetId=SPREADSHEET_ID,
-            range=f'{TAB_NAME}!A{startzeile}:F{endzeile}',
+            range=f'{TAB_NAME}!A{startzeile}:G{endzeile}',
             valueInputOption='RAW',
             body={'values': values}
         ).execute()
