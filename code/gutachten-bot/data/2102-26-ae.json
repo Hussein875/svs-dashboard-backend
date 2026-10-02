@@ -1,0 +1,20 @@
+{
+  "nummer": "2102/26",
+  "bestaetigt": true,
+  "auftraggeber": {
+    "anrede": "Herr",
+    "name": "Aras Dawd Psi",
+    "strasse": "Nimweger Str. 13",
+    "plz": "28259",
+    "ort": "Bremen",
+    "telefon": "0176 840 62 400",
+    "lesbar": true
+  },
+  "kennzeichen": { "wert": "HB-AA 455", "lesbar": true, "quelle": "Schein und Bilder", "schreibfehlerAbtretung": "HB-AA 465" },
+  "versicherung": { "name": "HUK Coburg", "schadennummer": "", "lesbar": true },
+  "unfallgegnerKennzeichen": "HB-WA 541",
+  "schadentag": "1.10.2026",
+  "schadenort": "Nimweger Str. 13, 28259 Bremen",
+  "vorsteuer": "Nein",
+  "vollmacht": false
+}

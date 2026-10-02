@@ -1,0 +1,18 @@
+{
+  "nummer": "2102/26",
+  "fin": { "wert": "W0V7H9EGXL4345038", "lesbar": true, "bestaetigt": true },
+  "erstzulassung": { "wert": "09.10.2020", "lesbar": true },
+  "halter": {
+    "anrede": "Herr",
+    "name": "Aras Dawd Psi",
+    "strasse": "Nimweger Str. 13",
+    "plz": "28259",
+    "ort": "Bremen"
+  },
+  "kennzeichenSchein": "HB-AA 455",
+  "huPlakette": "11/2027",
+  "huSchein": "10.25",
+  "getriebe": "Automatik",
+  "fahrzeug": "Opel Crossland X",
+  "kraftstoff": "Diesel"
+}

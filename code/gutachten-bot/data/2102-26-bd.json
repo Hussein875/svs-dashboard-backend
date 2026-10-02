@@ -1,0 +1,72 @@
+{
+  "nummer": "2102/26",
+  "kuerzel": "OS",
+  "kilometerstand": "112450",
+  "kilometerstandLesbar": true,
+  "hu": "11/2027",
+  "huLesbar": true,
+  "fahrbereitschaft": "verkehrssicher",
+  "airbagAusgeloest": false,
+  "scheckheft": false,
+  "polizei": true,
+  "unfallbericht": {
+    "dienststelle": "Polizei Bremen, PH Süd",
+    "strasse": "Otto-Lilienthal-Str. 15-17",
+    "ort": "Bremen",
+    "organisationseinheit": "ESS",
+    "vorgangsnummer": "210031/2026",
+    "kennzeichen": "HB-AA 455",
+    "schadentag": "1.10.2026",
+    "uhrzeit": "13:00",
+    "art": "Verkehrsunfall",
+    "telefon": "",
+    "sachbearbeiter": ""
+  },
+  "hergang": ["geparkt"],
+  "bereifung": {
+    "profiltiefe": "4",
+    "hersteller": "Hancock",
+    "herstellerLesbar": true,
+    "dimension": "195/60 R16",
+    "dimensionLesbar": true,
+    "felgen": "Aluminium"
+  },
+  "beschaedigungen": [
+    "Der Stoßfänger vorne ist beschädigt und muss erneuert werden.",
+    "Die Blende vorne links ist beschädigt und muss erneuert werden.",
+    "Der Parkhilfe-Sensor vorne links ist beschädigt und muss erneuert werden."
+  ],
+  "vorschaedenAngegeben": true,
+  "vorschaedenLesbar": true,
+  "vorschadenKuerzel": ["TVL"],
+  "vorschadenImBereich": [],
+  "vorschadenAusserhalb": ["Tür vorne links beschädigt"],
+  "bodenbilder": ["IMG_4178.JPG", "IMG_4186.JPG"],
+  "uebersichten": {
+    "vorneLinks": "IMG_4165.JPG",
+    "vorneRechts": "IMG_4166.JPG",
+    "hintenRechts": "IMG_4167.JPG",
+    "hintenLinks": "IMG_4168.JPG"
+  },
+  "kennzeichenFoto": "IMG_4188.JPG",
+  "schadenfotos": [
+    {"datei": "IMG_4169.JPG", "titel": "Schadenbereich vorne links"},
+    {"datei": "IMG_4170.JPG", "titel": "Stoßfänger vorne links beschädigt"},
+    {"datei": "IMG_4171.JPG", "titel": "Weitere Übersicht"},
+    {"datei": "IMG_4172.JPG", "titel": "Weitere Übersicht"},
+    {"datei": "IMG_4173.JPG", "titel": "Weitere Übersicht"},
+    {"datei": "IMG_4174.JPG", "titel": "Blende vorne links beschädigt"},
+    {"datei": "IMG_4175.JPG", "titel": "Weitere Übersicht"},
+    {"datei": "IMG_4176.JPG", "titel": "Weitere Übersicht"},
+    {"datei": "IMG_4177.JPG", "titel": "Weitere Übersicht"}
+  ],
+  "vorschadenFotos": [
+    {"datei": "IMG_4187.JPG", "titel": "Vorschaden - Tür vorne links"}
+  ],
+  "offen": [
+    "Schadenbeschreibung festgelegt",
+    "Auftraggeber fehlt auf der BD",
+    "Kennzeichen fehlt auf der BD",
+    "Fahrzeugidentifikationsnummer fehlt auf der BD"
+  ]
+}

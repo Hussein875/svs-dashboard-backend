@@ -1,0 +1,56 @@
+{
+  "felder": [
+    {
+      "id": "fahrzeugschein",
+      "label": "Fahrzeugschein"
+    },
+    {
+      "id": "kennzeichen",
+      "label": "Kennzeichen"
+    },
+    {
+      "id": "kilometerstand",
+      "label": "Kilometerstand"
+    },
+    {
+      "id": "schadenfoto-vorne-links",
+      "label": "Schadenfoto vorne links"
+    },
+    {
+      "id": "schadenfoto-vorne-rechts",
+      "label": "Schadenfoto vorne rechts"
+    },
+    {
+      "id": "schadenfoto-hinten-rechts",
+      "label": "Schadenfoto hinten rechts"
+    },
+    {
+      "id": "schadenfoto-hinten-links",
+      "label": "Schadenfoto hinten links"
+    },
+    {
+      "id": "vorschaeden",
+      "label": "Vorschäden-Angabe"
+    },
+    {
+      "id": "auftraggeber-anrede",
+      "label": "Auftraggeber Anrede"
+    },
+    {
+      "id": "auftraggeber-name",
+      "label": "Auftraggeber Name"
+    },
+    {
+      "id": "auftraggeber-strasse",
+      "label": "Auftraggeber Straße"
+    },
+    {
+      "id": "auftraggeber-plz",
+      "label": "Auftraggeber PLZ"
+    },
+    {
+      "id": "auftraggeber-ort",
+      "label": "Auftraggeber Ort"
+    }
+  ]
+}

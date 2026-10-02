@@ -1,0 +1,16 @@
+{
+  "name": "gutachten-bot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pflichtprüfung, Zustand und Eingabe in UltraExpert",
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "playwright": "^1.54.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node --env-file=.env --env-file=../ultraexpert-login/.env src/server.js",
+    "bearbeiten": "node --env-file=.env --env-file=../ultraexpert-login/.env src/bearbeiten.js"
+  }
+}

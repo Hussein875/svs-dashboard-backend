@@ -12,10 +12,19 @@ COPY code/UX-Watcher/assign-sachbearbeiter.js \
      code/UX-Watcher/playwright-shared.js \
      ./
 
+COPY code/gutachten-bot/package.json code/gutachten-bot/package-lock.json /app/gutachten-bot/
+WORKDIR /app/gutachten-bot
+RUN npm ci --omit=dev
+
+WORKDIR /app
+COPY code/gutachten-bot/src /app/gutachten-bot/src
+COPY code/gutachten-bot/regeln /app/gutachten-bot/regeln
+
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV ASSIGN_PORT=3080
+ENV GUTACHTEN_BOT_ROOT=/app/gutachten-bot
 
 EXPOSE 3080
 
