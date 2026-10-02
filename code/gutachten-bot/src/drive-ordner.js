@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { driveToken } from "./drive-foto.js";
-import { leseOrdnerNamen } from "./ordner.js";
+import { leseOrdnerNamen, loeseVorgangsNummer } from "./ordner.js";
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 
@@ -94,20 +94,22 @@ export async function leseExtraktionen({ folderId, nummer, token = driveToken })
   const ziel = String(nummer || "").trim();
   if (!ziel) throw new Error("Aktenzeichen fehlt");
 
-  const [meta, dateien] = await Promise.all([
-    leseOrdnerMeta(folderId, token),
-    listeOrdnerDateien(folderId, token),
-  ]);
+  const meta = await leseOrdnerMeta(folderId, token);
+  const dateien = await listeOrdnerDateien(folderId, token);
+  const vorgangsNummer = loeseVorgangsNummer(ziel, meta.nummer);
 
   const zugang = await token();
-  const bdDatei = waehleJson(dateien, ziel, "bd");
-  const aeDatei = waehleJson(dateien, ziel, "ae");
+  const bdDatei = waehleJson(dateien, vorgangsNummer, "bd");
+  const aeDatei = waehleJson(dateien, vorgangsNummer, "ae");
+  const scheinDatei = waehleJson(dateien, vorgangsNummer, "schein");
 
   let bd = bdDatei ? JSON.parse(await ladeText(bdDatei.id, zugang)) : null;
   let ae = aeDatei ? JSON.parse(await ladeText(aeDatei.id, zugang)) : null;
+  let schein = scheinDatei ? JSON.parse(await ladeText(scheinDatei.id, zugang)) : null;
 
-  if (!bd) bd = await ladeLokaleJson(ziel, "bd");
-  if (!ae) ae = await ladeLokaleJson(ziel, "ae");
+  if (!bd) bd = await ladeLokaleJson(vorgangsNummer, "bd");
+  if (!ae) ae = await ladeLokaleJson(vorgangsNummer, "ae");
+  if (!schein) schein = await ladeLokaleJson(vorgangsNummer, "schein");
 
   if (!bd && !ae) {
     throw new Error(
@@ -115,5 +117,5 @@ export async function leseExtraktionen({ folderId, nummer, token = driveToken })
     );
   }
 
-  return { meta, bd, ae };
+  return { meta, bd, ae, schein, vorgangsNummer };
 }

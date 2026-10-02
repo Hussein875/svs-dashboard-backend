@@ -39,9 +39,9 @@ export async function runKiGutachten({
   }
 
   onStep?.("Drive-Ordner lesen");
-  const { meta, bd, ae } = await leseExtraktionen({ folderId, nummer });
+  const { meta, bd, ae, schein, vorgangsNummer } = await leseExtraktionen({ folderId, nummer });
   const kuerzel = meta.kuerzel || bd?.kuerzel || ae?.kuerzel || "";
-  const datensatz = baueDatensatz({ ae, bd, kuerzel });
+  const datensatz = baueDatensatz({ ae, bd, schein, kuerzel });
   const { dokumente, fotos } = teileAnalyseQuellen(datensatz);
 
   const dbDir = mkdtempSync(path.join(tmpdir(), "gutachten-ki-"));
@@ -80,9 +80,19 @@ export async function runKiGutachten({
     }
 
     const stand = ergebnis.stand || "unbekannt";
-    const message = stand === "pausiert"
-      ? `Akte ${nummer}: Besichtigung, Beteiligte und Fahrzeug eingetragen (Stopp vor Bereifung).`
-      : `Akte ${nummer}: Gutachten-Bot (${stand}).`;
+    let message;
+    if (stand === "pausiert") {
+      message = `Akte ${nummer}: Besichtigung, Beteiligte und Fahrzeug eingetragen (Stopp vor Bereifung).`;
+    } else if (stand === "wartet_auf_eingabe") {
+      const wo = ergebnis.schritt ? ` bei ${ergebnis.schritt}` : "";
+      message = `Akte ${nummer}: Eingabe wartet${wo}: ${ergebnis.detail || "Pflichtfeld/UX"}`;
+    } else if (stand === "fehler") {
+      const wo = ergebnis.schritt ? `Schritt ${ergebnis.schritt}` : "Eingabe";
+      message = `Akte ${nummer}: ${wo} fehlgeschlagen – ${ergebnis.detail || "technischer Fehler"}`;
+      console.error(`❌ KI Gutachten (${nummer}): ${message}`);
+    } else {
+      message = `Akte ${nummer}: Gutachten-Bot (${stand}).`;
+    }
 
     return {
       akte: nummer,

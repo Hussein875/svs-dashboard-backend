@@ -44,6 +44,7 @@ export async function eingeben(db, adapter, options = {}) {
   const maxVersuche = options.maxVersuche ?? 3;
   const sleep = options.sleep || warte;
   const owner = options.owner || `phase2-${process.pid}`;
+  let letzterSchritt = "";
 
   try {
     await withVorgang(db, auftrag.nummer, owner, async (akte) => {
@@ -54,6 +55,7 @@ export async function eingeben(db, adapter, options = {}) {
 
       if (adapter.vorbereiten) await adapter.vorbereiten(auftrag.nummer);
       for (const schrittId of EINGABE) {
+        letzterSchritt = schrittId;
         log({ schritt: schrittId, status: "laeuft" });
         try {
           await akte.runSchritt(schrittId, async () => {
@@ -86,11 +88,23 @@ export async function eingeben(db, adapter, options = {}) {
     if (error?.code === "FACHLICH") {
       setWartetAufEingabe(db, auftrag.nummer);
       setzeQueueStatus(db, auftrag.id, "wartet");
-      return { gestartet: true, nummer: auftrag.nummer, stand: "wartet_auf_eingabe" };
+      return {
+        gestartet: true,
+        nummer: auftrag.nummer,
+        stand: "wartet_auf_eingabe",
+        schritt: letzterSchritt,
+        detail: error.message,
+      };
     }
     setzeQueueStatus(db, auftrag.id, istTechnisch(error) ? "fehler" : "in_arbeit");
     log({ schritt: "eingabe", status: "fehler" });
-    return { gestartet: true, nummer: auftrag.nummer, stand: "fehler" };
+    return {
+      gestartet: true,
+      nummer: auftrag.nummer,
+      stand: "fehler",
+      schritt: letzterSchritt,
+      detail: error?.message || String(error),
+    };
   } finally {
     if (adapter.abschliessen) {
       await adapter.abschliessen().catch(() => {});

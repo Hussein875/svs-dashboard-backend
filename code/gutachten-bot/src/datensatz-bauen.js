@@ -16,10 +16,23 @@ function schadenfotosAusUebersichten(uebersichten) {
   };
 }
 
-export function baueDatensatz({ ae, bd, kuerzel }) {
+function feldAusQuellen(...quellen) {
+  for (const quelle of quellen) {
+    if (!quelle) continue;
+    if (typeof quelle === "object" && quelle.lesbar !== false && String(quelle.wert ?? "").trim()) {
+      return quelle;
+    }
+    const text = String(quelle).trim();
+    if (text) return { wert: text, lesbar: true };
+  }
+  return { wert: "", lesbar: false };
+}
+
+export function baueDatensatz({ ae, bd, schein, kuerzel }) {
   const ausBd = datensatzAusBd(bd || {});
   const abtretung = ae || {};
   const rohBd = bd || {};
+  const rohSchein = schein || {};
 
   const auftraggeber = abtretung.auftraggeber && typeof abtretung.auftraggeber === "object"
     ? abtretung.auftraggeber
@@ -48,14 +61,22 @@ export function baueDatensatz({ ae, bd, kuerzel }) {
     anwalt: abtretung.anwalt,
     versicherung: abtretung.versicherung,
     vollmacht: abtretung.vollmacht === true,
-    fin: textFeld(rohBd.fin, rohBd.finLesbar),
-    erstzulassung: textFeld(rohBd.erstzulassung, rohBd.erstzulassungLesbar),
-    getriebe: textFeld(rohBd.getriebe, rohBd.getriebeLesbar),
+    fin: feldAusQuellen(rohSchein.fin, textFeld(rohBd.fin, rohBd.finLesbar)),
+    erstzulassung: feldAusQuellen(
+      rohSchein.erstzulassung,
+      textFeld(rohBd.erstzulassung, rohBd.erstzulassungLesbar),
+    ),
+    getriebe: feldAusQuellen(
+      rohSchein.getriebe,
+      textFeld(rohBd.getriebe, rohBd.getriebeLesbar),
+    ),
     farbe: textFeld(rohBd.farbe, rohBd.farbeLesbar),
-    fahrzeughalter: rohBd.fahrzeughalter,
+    fahrzeughalter: rohBd.fahrzeughalter || (rohSchein.halter
+      ? { ...rohSchein.halter, lesbar: true }
+      : undefined),
+    hu: feldAusQuellen(rohSchein.huPlakette, ausBd.hu),
     beschaedigungen: Array.isArray(rohBd.beschaedigungen) ? rohBd.beschaedigungen : [],
     schadenregionen: String(rohBd.schadenregionen || "").trim(),
-    hu: ausBd.hu,
     schilderung: ausBd.schilderung,
     fahrbereitschaft: ausBd.fahrbereitschaft,
     airbagAusgeloest: ausBd.airbagAusgeloest,
