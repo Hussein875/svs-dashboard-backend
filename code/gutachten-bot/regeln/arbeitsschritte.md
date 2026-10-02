@@ -19,22 +19,38 @@ Fehlt ein Feld oder ist es unleserlich, startet die Eingabe nicht. Der Stand wir
 
 Je Vorgangsnummer, in dieser Reihenfolge: `eingelesen`, `geprueft`, `eingetippt`, `abgeschlossen`. Dazu `wartet_auf_eingabe`, wenn die Pflichtfelder nicht erfüllt sind.
 
-## Phase 1, Analyse
+## Reihenfolge vs. UltraExpert-Menü
+
+Die Schrittnummern folgen dem **Besichtigungs-Ablauf** im Gutachten-Bot, nicht der linken Menüleiste in UltraExpert.
+
+Der Reiter **Auftrag** in UltraExpert ist **kein** Bot-Schritt: Die Akte existiert schon. Sachbearbeiter und Zuweisung laufen über das separate **Zuweisen** im Dashboard, nicht über **Mit KI bearbeiten**.
+
+## Mit KI bearbeiten (Dashboard → assign-service)
+
+Der Knopf liefert Aktenzeichen und Drive-Ordner-ID. Keine PIN, keine lokale Bot-Seite.
+
+**Phase 1 läuft beim Klick mit**, bevor in UltraExpert etwas gespeichert wird. Phase 1 schreibt nichts in UltraExpert.
+
+1. `dokumente-lesen` und `fotos-auswerten` — auf dem Server heute: **JSON-Lesung** aus dem Drive-Ordner (z. B. `2102-26-bd.json`, `2102-26-ae.json`, `2102-26-schein.json`). Bilder und handschriftliche BD werden dabei **nicht** neu ausgelesen (lokal am Mac vorbereitet, dann als JSON in den Ordner legen).
+2. `pflichtfelder-pruefen` — Fahrzeugschein, Kennzeichen, Kilometerstand, vier Übersichten, Vorschäden, Auftraggeber (Liste oben). Fehlt etwas → Lauf bricht ab, **kein Tippen** in UX.
+3. `report-schreiben` — merkt sich nur, dass die Prüfung durch ist. Das Google Doc „Aktennummer Report“ entsteht dabei **nicht**.
+
+Erst wenn Phase 1 durch ist, startet **Phase 2**. Der KI-Lauf auf dem Server tippt **Besichtigung → Beteiligte → Fahrzeug** und **stoppt vor Bereifung**.
+
+Sind 1 und 2 erledigt, ist der Stand `eingelesen`. Ist 3 erfolgreich, ist der Stand `geprueft`.
+
+## Phase 1, Analyse (vollständig, später)
 
 Diese Schritte dürfen später für mehrere Akten parallel laufen. Sie schreiben nichts in UltraExpert.
 
-1. `dokumente-lesen` — BD, Fahrzeugschein, Abtretung, Vollmacht lesen.
+1. `dokumente-lesen` — BD, Fahrzeugschein, Abtretung, Vollmacht lesen (Ziel: nicht nur JSON, sondern echte Dokumentenlesung).
 2. `fotos-auswerten` — Lichtbilder und Fotos 2 sichten. Aufnahmen über 10 MB nicht über den Chat-Download holen. Über `GUTACHTEN_DRIVE_CREDENTIALS` laden und mit `src/drive-foto.js` verkleinern, den Titel aus der Vorschau lesen. Videos ignorieren.
 3. `pflichtfelder-pruefen` — Liste oben. Nur bei vollständigem Datensatz erledigt.
 4. `report-schreiben` — was übernommen wurde, was fehlt, welche Felder leer bleiben.
 
-Sind 1 und 2 erledigt, ist der Stand `eingelesen`. Ist 3 erfolgreich, ist der Stand `geprueft`.
-
 ## Phase 2, Eingabe
 
 Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfung erledigt ist.
-
-Der Knopf **Mit KI bearbeiten** im Dashboard startet diese Phase. Er liefert Aktenzeichen und Drive-Ordner. Keine PIN und keine lokale Seite.
 
 5. `besichtigung` — Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
 6. `beteiligte` — Anwalt und Versicherung Anrede „Firma“. Liegt keine Vollmacht im Ordner, gibt es keinen Anwalt. Dann nur Auftraggeber und Versicherung. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht.
