@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { sachverstaendigerName } from "../src/eingabe-plan.js";
-import { leseOrdnerNamen } from "../src/ordner.js";
+import { aktenzeichenPasst, leseOrdnerNamen, loeseVorgangsNummer } from "../src/ordner.js";
 import { analysiere } from "../src/pipeline.js";
 import { eingeben } from "../src/phase2.js";
 import { starteAkte } from "../src/start-akte.js";
@@ -35,6 +35,12 @@ const basis = {
     lesbar: true,
   },
 };
+
+test("Sheet 2102 passt zu Drive-Ordner 2102/26", () => {
+  assert.equal(aktenzeichenPasst("2102", "2102/26"), true);
+  assert.equal(loeseVorgangsNummer("2102", "2102/26"), "2102/26");
+  assert.equal(aktenzeichenPasst("2102", "2103/26"), false);
+});
 
 test("Ordnername liefert Nummer und Kürzel", () => {
   assert.deepEqual(leseOrdnerNamen("2102/26 Unfallgutachten Beispiel (OS)"), {

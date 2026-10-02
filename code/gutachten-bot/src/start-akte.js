@@ -1,15 +1,16 @@
 import { sachverstaendigerName } from "./eingabe-plan.js";
-import { leseOrdnerNamen } from "./ordner.js";
+import { aktenzeichenPasst, leseOrdnerNamen, loeseVorgangsNummer } from "./ordner.js";
 import { eingeben } from "./phase2.js";
 import { analysiere } from "./pipeline.js";
 
 export async function starteAkte(db, auftrag, adapter, options = {}) {
-  const nummer = String(auftrag?.nummer || "").trim();
+  const sheetAkte = String(auftrag?.nummer || "").trim();
   const ordner = leseOrdnerNamen(auftrag?.ordnerName || "");
-  if (!nummer) return { gestartet: false, grund: "nummer" };
-  if (ordner.nummer && ordner.nummer !== nummer) {
-    return { gestartet: false, nummer, grund: "ordner" };
+  if (!sheetAkte) return { gestartet: false, grund: "nummer" };
+  if (!aktenzeichenPasst(sheetAkte, ordner.nummer)) {
+    return { gestartet: false, nummer: sheetAkte, grund: "ordner" };
   }
+  const nummer = loeseVorgangsNummer(sheetAkte, ordner.nummer);
 
   const kuerzel = String(auftrag?.kuerzel || ordner.kuerzel || "").trim().toUpperCase();
   if (!sachverstaendigerName(kuerzel)) {
