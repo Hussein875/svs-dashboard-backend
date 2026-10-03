@@ -55,6 +55,24 @@ export function fakeSeite(optionen = {}) {
   };
 }
 
+async function schliesseStoerungen(page) {
+  const closeBtn = page.locator("div.modal-content .modal-header button.close").first();
+  if (await closeBtn.isVisible().catch(() => false)) {
+    await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.keyboard.press("Escape").catch(() => {});
+  }
+  const banner = page.locator(".alert").filter({ hasText: /Mehrfachzugriff/i }).first();
+  if (await banner.isVisible().catch(() => false)) {
+    await banner.locator("button.close, .close").first().click().catch(() => {});
+  }
+}
+
+async function warteAufSeite(page) {
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+  await schliesseStoerungen(page);
+}
+
 export function createPlaywrightSeite(page) {
   const werte = new Map();
   let dossierId = "";
@@ -84,6 +102,12 @@ export function createPlaywrightSeite(page) {
       if (befehl.typ === "seite") {
         if (!dossierId) throw new FachlichError("Akte fehlt");
         await page.goto(`${base}home/dossiers/edit/${dossierId}/${befehl.pfad}`, { waitUntil: "domcontentloaded" });
+        await warteAufSeite(page);
+        if (befehl.pfad === "surveys") {
+          await page.locator('[name="surveys.0.location"], [name*="location"]').first()
+            .waitFor({ state: "visible", timeout: 25_000 })
+            .catch(() => {});
+        }
         werte.clear();
         return;
       }
@@ -150,7 +174,10 @@ export function createPlaywrightSeite(page) {
 }
 
 async function waehleFeld(page, feld, wert) {
-  const benannt = page.locator(`[name="${feld}"]`).first();
+  await schliesseStoerungen(page);
+  const escaped = feld.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const benannt = page.locator(`[name="${feld}"], select[name*="${feld}"]`).first();
   if (await benannt.count()) {
     const tag = await benannt.evaluate((el) => el.tagName);
     if (tag === "SELECT") {
@@ -161,12 +188,54 @@ async function waehleFeld(page, feld, wert) {
       return treffer;
     }
   }
-  const label = page.locator("label").filter({ hasText: new RegExp(`^${feld}$`, "i") }).first();
-  await label.locator("xpath=following::div[contains(@class,'control')][1]").click();
-  const optionen = await page.locator("[id*='option']").allTextContents();
+
+  const formGroup = page.locator(".form-group, .form-row, .row").filter({
+    has: page.locator("label", { hasText: new RegExp(escaped, "i") }),
+  }).first();
+
+  const klickZiele = [
+    formGroup.locator(".select2-selection").first(),
+    formGroup.locator("div.control").first(),
+    formGroup.locator("select").first(),
+    page.locator("label").filter({ hasText: new RegExp(escaped, "i") })
+      .locator("xpath=following::div[contains(@class,'control')][1]"),
+  ];
+
+  let geoeffnet = false;
+  for (const ziel of klickZiele) {
+    if (!(await ziel.count())) continue;
+    if (!(await ziel.first().isVisible().catch(() => false))) continue;
+    await ziel.first().click({ timeout: 15_000 });
+    geoeffnet = true;
+    break;
+  }
+  if (!geoeffnet) {
+    throw new FachlichError(`Feld nicht klickbar: ${feld}`);
+  }
+
+  await page.waitForTimeout(400);
+  const optionenLocs = [
+    page.locator(".select2-results__option"),
+    page.locator("[role='option']"),
+    page.locator("[id*='option']"),
+  ];
+  let optionen = [];
+  for (const loc of optionenLocs) {
+    if (await loc.count()) {
+      optionen = await loc.allTextContents();
+      if (optionen.length) break;
+    }
+  }
   const treffer = waehleOption(optionen, wert);
   if (!treffer) throw new FachlichError(feld);
-  await page.locator("[id*='option']").filter({ hasText: treffer }).first().click();
+  for (const loc of optionenLocs) {
+    const option = loc.filter({ hasText: treffer }).first();
+    if (await option.count()) {
+      await option.click();
+      return treffer;
+    }
+  }
+  await page.getByText(treffer, { exact: false }).first().click();
   return treffer;
 }
 
