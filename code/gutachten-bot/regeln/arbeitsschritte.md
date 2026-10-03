@@ -21,9 +21,9 @@ Je Vorgangsnummer, in dieser Reihenfolge: `eingelesen`, `geprueft`, `eingetippt`
 
 ## Reihenfolge vs. UltraExpert-Menü
 
-Die Schrittnummern folgen dem **Besichtigungs-Ablauf** im Gutachten-Bot, nicht der linken Menüleiste in UltraExpert.
+Phase 2 folgt der **linken Menüleiste** in UltraExpert (ohne Schritte, die der Bot nicht tippt): **Beteiligte → Besichtigungen → Fahrzeug** und danach Bereifung usw.
 
-Der Reiter **Auftrag** in UltraExpert ist **kein** Bot-Schritt: Die Akte existiert schon. Sachbearbeiter und Zuweisung laufen über das separate **Zuweisen** im Dashboard, nicht über **Mit KI bearbeiten**.
+Der Reiter **Auftrag** ist **kein** Bot-Schritt: Die Akte existiert schon. Sachbearbeiter und Zuweisung laufen über **Zuweisen** im Dashboard, nicht über **Mit KI bearbeiten**.
 
 ## Mit KI bearbeiten (Dashboard → assign-service)
 
@@ -35,7 +35,7 @@ Der Knopf liefert Aktenzeichen und Drive-Ordner-ID. Keine PIN, keine lokale Bot-
 2. `pflichtfelder-pruefen` — Fahrzeugschein, Kennzeichen, Kilometerstand, vier Übersichten, Vorschäden, Auftraggeber (Liste oben). Fehlt etwas → Lauf bricht ab, **kein Tippen** in UX.
 3. `report-schreiben` — merkt sich nur, dass die Prüfung durch ist. Das Google Doc „Aktennummer Report“ entsteht dabei **nicht**.
 
-Erst wenn Phase 1 durch ist, startet **Phase 2**. Der KI-Lauf auf dem Server tippt **Besichtigung → Beteiligte → Fahrzeug** und **stoppt vor Bereifung**.
+Erst wenn Phase 1 durch ist, startet **Phase 2**. Der KI-Lauf tippt **Beteiligte → Besichtigung → Fahrzeug** und **stoppt vor Bereifung**.
 
 Sind 1 und 2 erledigt, ist der Stand `eingelesen`. Ist 3 erfolgreich, ist der Stand `geprueft`.
 
@@ -52,8 +52,8 @@ Diese Schritte dürfen später für mehrere Akten parallel laufen. Sie schreiben
 
 Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfung erledigt ist.
 
-5. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
-6. `beteiligte` — Anwalt und Versicherung Anrede „Firma“. Liegt keine Vollmacht im Ordner, gibt es keinen Anwalt. Dann nur Auftraggeber und Versicherung. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht.
+5. `beteiligte` — Anwalt und Versicherung Anrede „Firma“. Liegt keine Vollmacht im Ordner, gibt es keinen Anwalt. Dann nur Auftraggeber und Versicherung. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht.
+6. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
 7. `fahrzeug` — Fahrzeug über die FIN identifizieren, nicht über HSN/TSN. Variante nach FIN, Erstzulassung und Getriebe. Nächste HU von der Plakette am Kennzeichen oder von der BD, nicht aus dem abgelaufenen Stempel im Schein. Getriebe am Wählhebel prüfen, wenn der Schein es nicht hergibt.
 8. `bereifung` — Profiltiefe, Hersteller, Dimension, Felgen. Oberes Kreuz Stahl, unteres Aluminium. Reifentyp, Modell und Bemerkung leer.
 9. `vor-ort` — Bedingungen ausreichend, Hebebühne leer, Zustand unrepariert, Identifizierung FZ-Schein. Scheckheft nur bei Kreuz auf der BD, dann Fachwerkstatt. Probelauf Antrieb durchgeführt. Allgemeinzustand gepflegt, normale Gebrauchsspuren. Schilderung aus der BD. Polizei nur eintragen, wenn auf der BD angekreuzt. Plausibilität plausibel.
