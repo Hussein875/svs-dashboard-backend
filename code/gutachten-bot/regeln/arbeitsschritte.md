@@ -52,7 +52,7 @@ Diese Schritte dürfen später für mehrere Akten parallel laufen. Sie schreiben
 
 Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfung erledigt ist.
 
-5. `besichtigung` — Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
+5. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
 6. `beteiligte` — Anwalt und Versicherung Anrede „Firma“. Liegt keine Vollmacht im Ordner, gibt es keinen Anwalt. Dann nur Auftraggeber und Versicherung. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht.
 7. `fahrzeug` — Fahrzeug über die FIN identifizieren, nicht über HSN/TSN. Variante nach FIN, Erstzulassung und Getriebe. Nächste HU von der Plakette am Kennzeichen oder von der BD, nicht aus dem abgelaufenen Stempel im Schein. Getriebe am Wählhebel prüfen, wenn der Schein es nicht hergibt.
 8. `bereifung` — Profiltiefe, Hersteller, Dimension, Felgen. Oberes Kreuz Stahl, unteres Aluminium. Reifentyp, Modell und Bemerkung leer.

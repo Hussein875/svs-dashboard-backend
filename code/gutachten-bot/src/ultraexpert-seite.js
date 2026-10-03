@@ -73,6 +73,23 @@ async function warteAufSeite(page) {
   await schliesseStoerungen(page);
 }
 
+async function oeffneBesichtigungFallsLeer(page) {
+  const ortsfeld = page.locator('[name="surveys.0.location"], [name*="location"]').first();
+  if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
+
+  const neu = page.getByRole("button", { name: /Neue Besichtigung/i }).first();
+  if (!(await neu.count())) {
+    const link = page.getByRole("link", { name: /Neue Besichtigung/i }).first();
+    if (await link.count()) await link.click();
+    else throw new FachlichError("Neue Besichtigung");
+  } else {
+    await neu.click();
+  }
+
+  await ortsfeld.waitFor({ state: "visible", timeout: 25_000 });
+  await warteAufSeite(page);
+}
+
 export function createPlaywrightSeite(page) {
   const werte = new Map();
   let dossierId = "";
@@ -104,9 +121,7 @@ export function createPlaywrightSeite(page) {
         await page.goto(`${base}home/dossiers/edit/${dossierId}/${befehl.pfad}`, { waitUntil: "domcontentloaded" });
         await warteAufSeite(page);
         if (befehl.pfad === "surveys") {
-          await page.locator('[name="surveys.0.location"], [name*="location"]').first()
-            .waitFor({ state: "visible", timeout: 25_000 })
-            .catch(() => {});
+          await oeffneBesichtigungFallsLeer(page);
         }
         werte.clear();
         return;
