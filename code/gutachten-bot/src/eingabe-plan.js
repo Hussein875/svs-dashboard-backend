@@ -191,17 +191,19 @@ function bereifung(daten) {
   if (felgen !== "Stahl" && felgen !== "Aluminium") return fachlich("bereifung", "Felgen unklar");
   return {
     id: "bereifung",
-    speichern: false,
+    speichern: true,
     befehle: [
       { typ: "seite", pfad: "vehicle/tyres" },
-      { typ: "bereifung", profiltiefe, hersteller, dimension, felgen },
+      { typ: "text", feld: "tyres.1.profile", wert: profiltiefe },
+      { typ: "waehle", feld: "Hersteller", wert: hersteller },
+      { typ: "waehle", feld: "Dimension", wert: dimension },
+      { typ: "waehle", feld: "Felgen", wert: felgen },
     ],
   };
 }
 
 function vorOrt(daten) {
   if (!wert(daten.schilderung)) return fachlich("vor-ort", "Schilderung fehlt");
-  if (daten.polizei?.angegeben === true) return offen("vor-ort");
   const befehle = [
     { typ: "seite", pfad: "inspections" },
     { typ: "waehle", feld: "Besichtigungsbedingungen", wert: "ausreichend" },
@@ -290,13 +292,28 @@ export function vorschaedenText(eintrag) {
 
 function vorschaeden(daten) {
   const eintrag = daten.vorschaeden || {};
-  const teile = ["imSchadenbereich", "ausserhalb", "repariert"]
-    .flatMap((key) => (Array.isArray(eintrag[key]) ? eintrag[key] : []));
-  if (teile.length > 0) return { ...offen("vorschaeden"), text: vorschaedenText(eintrag) };
+  const text = vorschaedenText(eintrag);
+  if (!text) {
+    return {
+      id: "vorschaeden",
+      speichern: false,
+      befehle: [{ typ: "seite", pfad: "condition/predamage" }],
+    };
+  }
+  const imBereich = Array.isArray(eintrag.imSchadenbereich) && eintrag.imSchadenbereich.length > 0;
   return {
     id: "vorschaeden",
-    speichern: false,
-    befehle: [{ typ: "seite", pfad: "condition/predamage" }],
+    speichern: true,
+    befehle: [
+      { typ: "seite", pfad: "condition/predamage" },
+      {
+        typ: "vorschaden",
+        variante: imBereich
+          ? "A - Abzug Vorschäden - WV Erneuerung"
+          : "C - Abzug - Vorschaden NICHT im Schadenbereich",
+        html: text,
+      },
+    ],
   };
 }
 

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createUltraExpertAdapter } from "./adapter-ultraexpert.js";
-import { baueDatensatz, teileAnalyseQuellen } from "./datensatz-bauen.js";
+import { teileAnalyseQuellen, werteLesung } from "./lesung.js";
 import { leseExtraktionen } from "./drive-ordner.js";
 import { createPlaywrightSeite } from "./ultraexpert-seite.js";
 import { starteAkte } from "./start-akte.js";
@@ -41,7 +41,7 @@ export async function runKiGutachten({
   onStep?.("Drive-Ordner lesen");
   const { meta, bd, ae, schein, vorgangsNummer } = await leseExtraktionen({ folderId, nummer });
   const kuerzel = meta.kuerzel || bd?.kuerzel || ae?.kuerzel || "";
-  const datensatz = baueDatensatz({ ae, bd, schein, kuerzel });
+  const datensatz = werteLesung({ ae, bd, schein, ordnerName: meta.name, kuerzel });
   const { dokumente, fotos } = teileAnalyseQuellen(datensatz);
 
   const dbDir = mkdtempSync(path.join(tmpdir(), "gutachten-ki-"));
@@ -68,6 +68,7 @@ export async function runKiGutachten({
       owner: `ki-${process.pid}`,
       log,
       maxVersuche: 3,
+      nacheinander: true,
     });
 
     if (!ergebnis.gestartet) {
@@ -81,8 +82,11 @@ export async function runKiGutachten({
 
     const stand = ergebnis.stand || "unbekannt";
     let message;
-    if (stand === "pausiert") {
-      message = `Akte ${nummer}: Besichtigung, Beteiligte und Fahrzeug eingetragen (Stopp vor Bereifung).`;
+    if (stand === "pausiert" || stand === "teilweise") {
+      const offen = Array.isArray(ergebnis.offen) && ergebnis.offen.length
+        ? ` Offen: ${ergebnis.offen.join(", ")}.`
+        : "";
+      message = `Akte ${nummer}: Schritte nacheinander.${offen}`;
     } else if (stand === "wartet_auf_eingabe") {
       const wo = ergebnis.schritt ? ` bei ${ergebnis.schritt}` : "";
       message = `Akte ${nummer}: Eingabe wartet${wo}: ${ergebnis.detail || "Pflichtfeld/UX"}`;

@@ -1,7 +1,7 @@
 import { FachlichError, NichtUmgesetztError } from "./fehler.js";
 import { waehleModell, waehleOption } from "./eingabe-plan.js";
 
-export const UNSICHERE_TYPEN = new Set(["bereifung", "skizze"]);
+export const UNSICHERE_TYPEN = new Set(["skizze"]);
 
 export async function fuehreSchritt(seite, schritt) {
   if (!schritt) throw new FachlichError("Schritt fehlt");
@@ -43,6 +43,9 @@ export function fakeSeite(optionen = {}) {
       }
       if (befehl.typ === "beteiligter") {
         werte.set(befehl.rolle, JSON.stringify(befehl));
+      }
+      if (befehl.typ === "vorschaden") {
+        werte.set("vorschaeden", befehl.html);
       }
     },
     async pruefe() {
@@ -167,11 +170,16 @@ export function createPlaywrightSeite(page) {
         werte.set(befehl.rolle, befehl.firma || `${befehl.vorname} ${befehl.nachname}`);
         return;
       }
+      if (befehl.typ === "vorschaden") {
+        await vorschadenSchreiben(page, befehl);
+        werte.set("vorschaeden", befehl.html);
+        return;
+      }
       throw new NichtUmgesetztError(befehl.typ);
     },
     async pruefe() {
       for (const [feld, erwartet] of werte) {
-        if (feld === "modell" || feld === "Auftraggeber" || feld === "Anwalt" || feld === "Versicherung") continue;
+        if (feld === "modell" || feld === "Auftraggeber" || feld === "Anwalt" || feld === "Versicherung" || feld === "vorschaeden") continue;
         if (["Besichtigungsort", "Sachverständiger", "Besichtigungsbedingungen", "Besichtigungszustand", "Identifizierung", "Probelauf Antrieb", "Allgemeinzustand", "Plausibilität", "Scheckheftgepflegt", "movementType", "airbagReleased"].includes(feld)) {
           continue;
         }
@@ -254,8 +262,28 @@ async function waehleFeld(page, feld, wert) {
   return treffer;
 }
 
+async function vorschadenSchreiben(page, befehl) {
+  const reiter = page.getByRole("tab", { name: /Vorschäden/i }).first();
+  if (await reiter.count()) await reiter.click().catch(() => {});
+  const block = page.locator("div").filter({ hasText: "Nicht reparierte Vorschäden" }).last();
+  const keine = block.getByRole("checkbox", { name: /^Keine$/i }).first();
+  if (await keine.count() && await keine.isChecked().catch(() => false)) await keine.click();
+  const auswahl = block.locator("select").first();
+  if (befehl.variante && await auswahl.count()) {
+    const optionen = await auswahl.locator("option").allTextContents();
+    const treffer = waehleOption(optionen, befehl.variante);
+    if (treffer) await auswahl.selectOption({ label: treffer }).catch(() => {});
+  }
+  const editor = block.locator("[contenteditable='true']").first();
+  if (!(await editor.count())) throw new NichtUmgesetztError("vorschaeden");
+  await editor.evaluate((el, html) => {
+    el.innerHTML = html;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, befehl.html);
+}
+
 async function beteiligtenSchreiben(page, befehl) {
-  const knopf = page.getByRole("button", { name: /Beteiligten hinzufügen|Hinzufügen/i }).first();
+  const knopf = page.getByRole("button", { name: /Neuer Beteiligter|Beteiligten hinzufügen|Hinzufügen/i }).first();
   if (!(await knopf.count())) throw new NichtUmgesetztError("beteiligte");
   await knopf.click();
   await waehleFeld(page, "Anrede", befehl.anrede);

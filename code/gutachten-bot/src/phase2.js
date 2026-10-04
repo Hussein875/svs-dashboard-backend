@@ -47,13 +47,14 @@ export async function eingeben(db, adapter, options = {}) {
   let letzterSchritt = "";
 
   try {
-    await withVorgang(db, auftrag.nummer, owner, async (akte) => {
+    const innen = await withVorgang(db, auftrag.nummer, owner, async (akte) => {
       const pruefung = pruefePflichtfelder(auftrag.datensatz);
       if (!pruefung.vollstaendig) {
         throw new FachlichError("Pflichtfelder unvollständig");
       }
 
       if (adapter.vorbereiten) await adapter.vorbereiten(auftrag.nummer);
+      const offen = [];
       for (const schrittId of EINGABE) {
         letzterSchritt = schrittId;
         log({ schritt: schrittId, status: "laeuft" });
@@ -66,12 +67,23 @@ export async function eingeben(db, adapter, options = {}) {
             await mitWiederholung(() => methode(auftrag.datensatz), { maxVersuche, sleep });
           });
         } catch (error) {
+          if (options.nacheinander === true && error?.code === "NICHT_UMGESETZT") {
+            offen.push(schrittId);
+            log({ schritt: schrittId, status: "offen" });
+            continue;
+          }
           log({ schritt: schrittId, status: error?.code === "FACHLICH" ? "wartet" : "fehler" });
           throw error;
         }
         log({ schritt: schrittId, status: "erledigt" });
       }
+      if (options.nacheinander === true && offen.length > 0) {
+        setzeQueueStatus(db, auftrag.id, "pausiert");
+        return { gestartet: true, nummer: auftrag.nummer, stand: "teilweise", offen };
+      }
     });
+
+    if (innen?.stand === "teilweise") return innen;
 
     setzeQueueStatus(db, auftrag.id, "erledigt");
     log({ schritt: "eingabe", status: "erledigt" });
