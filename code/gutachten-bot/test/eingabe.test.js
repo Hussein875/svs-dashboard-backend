@@ -71,7 +71,11 @@ test("Plan übernimmt nur lesbare Felder und lässt Gegner und HSN weg", () => {
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "Sachverständiger").wert, "Hussein Souleiman");
   assert.equal(plan.beteiligte.befehle.find((befehl) => befehl.rolle === "Anwalt").anrede, "Firma");
   assert.equal(plan.fahrzeug.befehle.find((befehl) => befehl.feld === "vehicle.vin").wert, "WVWZZZCDZLW002977");
-  assert.equal(plan.bereifung.befehle.some((befehl) => befehl.typ === "bereifung" && befehl.felgen === "Aluminium"), true);
+  assert.equal(
+    plan.bereifung.befehle.some((befehl) => befehl.typ === "waehle" && befehl.feld === "Felgen" && befehl.wert === "Aluminium"),
+    true,
+  );
+  assert.equal(plan.bereifung.befehle.find((befehl) => befehl.feld === "tyres.1.profile").wert, "6");
   assert.equal(JSON.stringify(plan.bereifung).includes("Sommer"), false);
   assert.equal(plan.schadenfeststellung.befehle.find((befehl) => befehl.feld === "airbagReleased").wert, "Nein");
 
@@ -119,7 +123,7 @@ test("Fahrbereitschaft und Modell werden eindeutig gewählt", () => {
   ), null);
 });
 
-test("Eingabe speichert die bekannten Schritte und stoppt vor der Reifengrafik", async () => {
+test("Eingabe speichert die bekannten Schritte und stoppt vor dem Dokumenten-Import", async () => {
   const db = neueDb();
   const seite = fakeSeite({ modelle: ["C 180 Schaltgetriebe", "C 180 Automatik 2020"] });
   const zeilen = [];
@@ -137,8 +141,9 @@ test("Eingabe speichert die bekannten Schritte und stoppt vor der Reifengrafik",
     assert.equal(ergebnis.stand, "pausiert");
     assert.equal(getVorgang(db, "2400/26").schritte.besichtigung, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte.fahrzeug, "erledigt");
-    assert.equal(getVorgang(db, "2400/26").schritte.bereifung, "offen");
-    assert.equal(seite.gespeichert.length, 3);
+    assert.equal(getVorgang(db, "2400/26").schritte.bereifung, "erledigt");
+    assert.equal(getVorgang(db, "2400/26").schritte["dokumente-import"], "offen");
+    assert.equal(seite.gespeichert.length, 6);
     assert.equal(seite.gespeichert.some((stand) => JSON.stringify(stand).includes("HH-AB 100")), false);
     assert.equal(zeilen.some((zeile) => zeile.includes("HH-AB 100") || zeile.includes("Beispiel")), false);
     assert.equal(seite.geoeffnet.includes("2083/26"), false);
