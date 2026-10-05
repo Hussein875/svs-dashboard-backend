@@ -80,6 +80,14 @@ export function komprimiere(quelle, ziel) {
   });
 }
 
+export async function ladeBytes(dateiId, token = driveToken) {
+  const zugang = await token();
+  const adresse = `${DRIVE}/${encodeURIComponent(dateiId)}?alt=media&supportsAllDrives=true`;
+  const antwort = await fetch(adresse, { headers: { authorization: `Bearer ${zugang}` } });
+  if (!antwort.ok) throw new Error("Drive-Datei konnte nicht geladen werden");
+  return Buffer.from(await antwort.arrayBuffer());
+}
+
 export async function ladeVorschau(dateiId, ziel, token = driveToken) {
   const zugang = await token();
   const adresse = `${DRIVE}/${encodeURIComponent(dateiId)}?alt=media&supportsAllDrives=true`;

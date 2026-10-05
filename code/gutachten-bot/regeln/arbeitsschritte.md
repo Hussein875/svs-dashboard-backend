@@ -31,11 +31,11 @@ Der Knopf liefert Aktenzeichen und Drive-Ordner-ID. Keine PIN, keine lokale Bot-
 
 **Phase 1 läuft beim Klick mit**, bevor in UltraExpert etwas gespeichert wird. Phase 1 schreibt nichts in UltraExpert.
 
-1. `dokumente-lesen` und `fotos-auswerten` — auf dem Server heute: **JSON-Lesung** aus dem Drive-Ordner (z. B. `2102-26-bd.json`, `2102-26-ae.json`, `2102-26-schein.json`). Bilder und handschriftliche BD werden dabei **nicht** neu ausgelesen (lokal am Mac vorbereitet, dann als JSON in den Ordner legen).
+1. `dokumente-lesen` und `fotos-auswerten` — der Klick liest BD, Abtretung und die Fotos im Drive-Ordner selbst. Videos und der Ordner Fotos 2 bleiben draußen. JSON-Dateien nur, wenn keine Dokumente im Ordner liegen.
 2. `pflichtfelder-pruefen` — Fahrzeugschein, Kennzeichen, Kilometerstand, vier Übersichten, Vorschäden, Auftraggeber (Liste oben). Fehlt etwas → Lauf bricht ab, **kein Tippen** in UX.
 3. `report-schreiben` — merkt sich nur, dass die Prüfung durch ist. Das Google Doc „Aktennummer Report“ entsteht dabei **nicht**.
 
-Erst wenn Phase 1 durch ist, startet **Phase 2**. Der KI-Lauf tippt **Beteiligte → Besichtigung → Fahrzeug** und **stoppt vor Bereifung**.
+Erst wenn Phase 1 durch ist, startet **Phase 2**. Der KI-Lauf tippt Beteiligte, Besichtigung, Fahrzeug, Bereifung, Vor Ort, Vorschäden und Schadenfeststellung. Lichtbilder und Dokumentenimport bleiben offen, wenn dafür noch kein Klickpfad da ist.
 
 Sind 1 und 2 erledigt, ist der Stand `eingelesen`. Ist 3 erfolgreich, ist der Stand `geprueft`.
 

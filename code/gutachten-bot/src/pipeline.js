@@ -36,12 +36,18 @@ export async function analysiere(db, auftrag) {
   const owner = auftrag.owner || `phase1-${process.pid}`;
 
   return withVorgang(db, nummer, owner, async (akte) => {
+    const dokumenteWert = await auftrag.dokumente();
+    const fotosWert = await auftrag.fotos();
+    if (auftrag.trotzLuecken === true) {
+      speichereExtrakt(db, nummer, "dokumente", dokumenteWert);
+      speichereExtrakt(db, nummer, "fotos", fotosWert);
+    }
     await Promise.all([
       akte.runSchritt("dokumente-lesen", async () => {
-        speichereExtrakt(db, nummer, "dokumente", await auftrag.dokumente());
+        speichereExtrakt(db, nummer, "dokumente", dokumenteWert);
       }),
       akte.runSchritt("fotos-auswerten", async () => {
-        speichereExtrakt(db, nummer, "fotos", await auftrag.fotos());
+        speichereExtrakt(db, nummer, "fotos", fotosWert);
       }),
     ]);
 
@@ -51,38 +57,55 @@ export async function analysiere(db, auftrag) {
     ]);
     const datensatz = zusammenfuegen(dokumenteLauf, fotosLauf);
     const ergebnis = pruefePflichtfelder(datensatz);
-    const bericht = berichtText(nummer, ergebnis);
+    let bericht = berichtText(nummer, ergebnis);
 
-    if (!ergebnis.vollstaendig) {
+    const fehlend = ergebnis.fehlend.map((feld) => ({ id: feld.id, label: feld.label, grund: feld.grund }));
+    if (!ergebnis.vollstaendig && auftrag.trotzLuecken !== true) {
       setWartetAufEingabe(db, nummer);
       await akte.runSchritt("report-schreiben", async () => {});
       return {
         angenommen: false,
         nummer,
         bericht,
-        fehlend: ergebnis.fehlend.map((feld) => ({ id: feld.id, grund: feld.grund })),
+        fehlend,
         stand: getVorgang(db, nummer).stand,
       };
     }
+    if (!ergebnis.vollstaendig) {
+      bericht = bericht.replace(
+        "Pflichtfelder unvollständig. Eingabe startet nicht.",
+        "Pflichtfelder unvollständig. Lesbare Angaben werden eingetragen, der Rest bleibt zum manuellen Nachtragen.",
+      );
+    }
 
     await akte.runSchritt("pflichtfelder-pruefen", async () => {});
-    const queueId = einreihen(db, nummer, datensatz, bericht);
+    const queueId = einreihen(db, nummer, datensatz, bericht, {
+      aktualisieren: auftrag.trotzLuecken === true,
+    });
     await akte.runSchritt("report-schreiben", async () => {});
     return {
       angenommen: true,
       nummer,
       bericht,
-      fehlend: [],
+      fehlend,
       queueId,
       stand: getVorgang(db, nummer).stand,
     };
   });
 }
 
-function einreihen(db, nummer, datensatz, bericht) {
+function einreihen(db, nummer, datensatz, bericht, optionen = {}) {
   const vorhanden = db.prepare(
-    "SELECT id, status FROM eingabe_queue WHERE nummer = ? AND status IN ('wartend', 'in_arbeit') ORDER BY id DESC LIMIT 1",
+    "SELECT id, status FROM eingabe_queue WHERE nummer = ? AND status IN ('wartend', 'in_arbeit', 'pausiert') ORDER BY id DESC LIMIT 1",
   ).get(nummer);
+  if (vorhanden && optionen.aktualisieren === true && vorhanden.status !== "in_arbeit") {
+    db.prepare("UPDATE eingabe_queue SET datensatz = ?, bericht = ? WHERE id = ?").run(
+      JSON.stringify(datensatz),
+      bericht,
+      vorhanden.id,
+    );
+    return vorhanden.id;
+  }
   if (vorhanden) return vorhanden.id;
 
   const result = db.prepare(`

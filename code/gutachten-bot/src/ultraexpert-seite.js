@@ -77,17 +77,27 @@ async function warteAufSeite(page) {
 }
 
 async function oeffneBesichtigungFallsLeer(page) {
-  const ortsfeld = page.locator('[name="surveys.0.location"], [name*="location"]').first();
+  const ortsfeld = page.locator('[name="surveys.0.location"]').first();
   if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
 
-  const neu = page.getByRole("button", { name: /Neue Besichtigung/i }).first();
-  if (!(await neu.count())) {
-    const link = page.getByRole("link", { name: /Neue Besichtigung/i }).first();
-    if (await link.count()) await link.click();
-    else throw new FachlichError("Neue Besichtigung");
-  } else {
-    await neu.click();
+  const muster = /Neue Besichtigung/i;
+  const ziele = [
+    page.getByRole("button", { name: muster }),
+    page.getByRole("link", { name: muster }),
+    page.locator("button, a, [role='button']").filter({ hasText: muster }),
+    page.getByText(muster),
+  ];
+  let geklickt = false;
+  for (const liste of ziele) {
+    const ziel = liste.first();
+    if (!(await ziel.count())) continue;
+    if (!(await ziel.isVisible().catch(() => false))) continue;
+    await ziel.scrollIntoViewIfNeeded().catch(() => {});
+    await ziel.click();
+    geklickt = true;
+    break;
   }
+  if (!geklickt) throw new FachlichError("Neue Besichtigung nicht gefunden");
 
   await ortsfeld.waitFor({ state: "visible", timeout: 25_000 });
   await warteAufSeite(page);

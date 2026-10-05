@@ -145,3 +145,26 @@ test("Abbruch mitten in der Eingabe wird beim nächsten Lauf fortgesetzt", async
     closeState(db);
   }
 });
+
+test("nacheinander überspringt einen fehlenden Schritt und macht weiter", async () => {
+  const db = neueDb();
+  try {
+    await vorbereiten(db, "2205/26");
+    let vorOrt = false;
+    const ergebnis = await eingeben(db, adapter({
+      bereifung: async () => {
+        throw new FachlichError("Bereifung fehlt");
+      },
+      "vor-ort": async () => {
+        vorOrt = true;
+      },
+    }), { nacheinander: true, sleep: async () => {}, owner: "tipp-n" });
+    assert.equal(vorOrt, true);
+    assert.equal(ergebnis.stand, "teilweise");
+    assert.match(ergebnis.offen.join(" "), /bereifung/);
+    assert.equal(getVorgang(db, "2205/26").schritte.bereifung, "offen");
+    assert.equal(getVorgang(db, "2205/26").schritte["vor-ort"], "erledigt");
+  } finally {
+    closeState(db);
+  }
+});

@@ -1,5 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.54.0-jammy
 
+RUN apt-get update && apt-get install -y python3 python3-pil poppler-utils && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY code/UX-Watcher/package.json code/UX-Watcher/package-lock.json ./

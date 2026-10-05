@@ -49,7 +49,7 @@ export async function eingeben(db, adapter, options = {}) {
   try {
     const innen = await withVorgang(db, auftrag.nummer, owner, async (akte) => {
       const pruefung = pruefePflichtfelder(auftrag.datensatz);
-      if (!pruefung.vollstaendig) {
+      if (!pruefung.vollstaendig && options.nacheinander !== true) {
         throw new FachlichError("Pflichtfelder unvollständig");
       }
 
@@ -67,8 +67,9 @@ export async function eingeben(db, adapter, options = {}) {
             await mitWiederholung(() => methode(auftrag.datensatz), { maxVersuche, sleep });
           });
         } catch (error) {
-          if (options.nacheinander === true && error?.code === "NICHT_UMGESETZT") {
-            offen.push(schrittId);
+          if (options.nacheinander === true && error?.code !== "BOT_STOPPED") {
+            const grund = String(error?.message || schrittId).trim();
+            offen.push(grund && grund !== schrittId ? `${schrittId} (${grund})` : schrittId);
             log({ schritt: schrittId, status: "offen" });
             continue;
           }

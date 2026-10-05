@@ -20,6 +20,7 @@ export async function starteAkte(db, auftrag, adapter, options = {}) {
   const analyse = await analysiere(db, {
     nummer,
     owner: options.owner,
+    trotzLuecken: options.trotzLuecken === true,
     dokumente: async () => ({ ...(await auftrag.dokumente()), kuerzel }),
     fotos: auftrag.fotos,
   });
@@ -28,9 +29,10 @@ export async function starteAkte(db, auftrag, adapter, options = {}) {
       gestartet: false,
       nummer,
       grund: "pflichtfelder",
-      fehlend: analyse.fehlend.map((feld) => feld.id),
+      fehlend: analyse.fehlend,
     };
   }
 
-  return eingeben(db, adapter, { ...options, nummer, fortsetzen: true });
+  const eingabe = await eingeben(db, adapter, { ...options, nummer, fortsetzen: true });
+  return { ...eingabe, fehlend: analyse.fehlend || [] };
 }

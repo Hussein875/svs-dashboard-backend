@@ -49,6 +49,21 @@ export async function listeOrdnerDateien(folderId, token = driveToken) {
   return dateien;
 }
 
+export async function listeOrdnerBaum(folderId, token = driveToken, ordner = "") {
+  const dateien = await listeOrdnerDateien(folderId, token);
+  const ergebnis = [];
+  for (const datei of dateien) {
+    const name = String(datei.name || "");
+    if (datei.mimeType === "application/vnd.google-apps.folder") {
+      const tiefer = await listeOrdnerBaum(datei.id, token, ordner ? `${ordner}/${name}` : name);
+      ergebnis.push(...tiefer);
+      continue;
+    }
+    ergebnis.push({ ...datei, ordner });
+  }
+  return ergebnis;
+}
+
 export async function leseOrdnerMeta(folderId, token = driveToken) {
   const zugang = await token();
   const id = String(folderId || "").trim();

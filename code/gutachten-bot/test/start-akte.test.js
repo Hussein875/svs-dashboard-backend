@@ -105,3 +105,29 @@ test("die angeklickte Akte wird bearbeitet, nicht die ältere", async () => {
     closeState(db);
   }
 });
+
+test("fehlende Pflichtfelder halten die Eingabe nicht auf", async () => {
+  const db = neueDb();
+  const geoeffnet = [];
+  try {
+    const ergebnis = await starteAkte(db, {
+      nummer: "2102/26",
+      ordnerName: "2102/26 Unfallgutachten Beispiel (HU)",
+      dokumente: async () => ({ ...basis, kennzeichen: { wert: "", lesbar: false } }),
+      fotos: async () => ({
+        kilometerstand: basis.kilometerstand,
+        schadenfotos: basis.schadenfotos,
+      }),
+    }, {
+      async vorbereiten(nummer) {
+        geoeffnet.push(nummer);
+      },
+    }, { owner: "luecke", trotzLuecken: true, nacheinander: true, sleep: async () => {} });
+    assert.equal(ergebnis.gestartet, true);
+    assert.deepEqual(geoeffnet, ["2102/26"]);
+    assert.equal(ergebnis.fehlend.some((feld) => feld.id === "kennzeichen"), true);
+    assert.equal(ergebnis.stand, "teilweise");
+  } finally {
+    closeState(db);
+  }
+});
