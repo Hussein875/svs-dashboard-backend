@@ -9,6 +9,7 @@ test("Ordner trennt BD, Abtretung und Fotos und lässt Video sowie Fotos 2 weg",
   const gruppen = ordneDateien([
     { name: "2102/26 BD.pdf", mimeType: "application/pdf", ordner: "" },
     { name: "2102/26 AE.pdf", mimeType: "application/pdf", ordner: "" },
+    { name: "2102/26 Vollmacht.pdf", mimeType: "application/pdf", ordner: "" },
     { name: "2102/26 K.pdf", mimeType: "application/pdf", ordner: "" },
     { name: "IMG_4166.JPG", mimeType: "image/jpeg", ordner: "Fotos" },
     { name: "IMG_4165.JPG", mimeType: "image/jpeg", ordner: "Fotos" },
@@ -16,7 +17,7 @@ test("Ordner trennt BD, Abtretung und Fotos und lässt Video sowie Fotos 2 weg",
   ]);
   assert.equal(gruppen.bd.length, 1);
   assert.equal(gruppen.ae.length, 1);
-  assert.equal(gruppen.vollmacht.length, 0);
+  assert.equal(gruppen.vollmacht.length, 1);
   assert.deepEqual(gruppen.fotos.map((datei) => datei.name), ["IMG_4165.JPG", "IMG_4166.JPG"]);
 });
 
@@ -29,6 +30,77 @@ test("Der Fahrzeugschein wird auch unter den ersten Fotos erkannt", async () => 
   assert.equal(rollen.schein, "IMG_4390.JPG");
   assert.equal(rollen.vorneLinks, "IMG_4391.JPG");
   assert.equal(rollen.vorneRechts, "");
+});
+
+test("Zwei Reifenfotos werden gesammelt, eine Übersicht nicht", async () => {
+  const fotos = ["IMG_1.JPG", "IMG_2.JPG", "IMG_3.JPG"].map((name) => ({ name }));
+  const rollen = await sammleFotoRollen(fotos, async () => ({
+    vorneLinks: "IMG_1.JPG",
+    reifen: ["IMG_1.JPG", "IMG_2.JPG", "IMG_3.JPG", "fremd.jpg"],
+  }));
+  assert.deepEqual(rollen.reifen, ["IMG_2.JPG", "IMG_3.JPG"]);
+});
+
+test("Reifenfotos füllen die Bereifung, wenn die BD leer ist", () => {
+  const roh = rohAusModell({}, {
+    bereifungBild: { profiltiefe: "5 mm", hersteller: "Michelin", dimension: "205/55R16", felgen: "Alu" },
+  });
+  const daten = werteLesung({ ...roh, ordnerName: "2113/26 Unfallgutachten (HU)" });
+  assert.equal(daten.bereifung.profiltiefe, "5");
+  assert.equal(daten.bereifung.hersteller, "Michelin");
+  assert.equal(daten.bereifung.dimension, "205/55 R16");
+  assert.equal(daten.bereifung.felgen, "Aluminium");
+  assert.equal(daten.bereifung.lesbar, true);
+  const luecke = rohAusModell({}, {
+    bereifungBild: { profiltiefe: "4", hersteller: "", dimension: "195/60 R16", felgen: "Stahl" },
+  });
+  assert.equal(luecke.bd.bereifung.lesbar, false);
+});
+
+test("Leere Fahrbereitschaft auf der BD ist verkehrssicher", () => {
+  const leer = rohAusModell({ fahrbereitschaft: "" }, { bdGelesen: true });
+  assert.equal(leer.bd.fahrbereitschaft, "verkehrssicher");
+  const kreuz = rohAusModell({ fahrbereitschaft: "nicht verkehrssicher" }, { bdGelesen: true });
+  assert.equal(kreuz.bd.fahrbereitschaft, "nicht verkehrssicher");
+  const ohneBlatt = rohAusModell({ fahrbereitschaft: "" });
+  assert.equal(ohneBlatt.bd.fahrbereitschaft, "");
+});
+
+test("Schadentag in der Zukunft bleibt leer", () => {
+  const roh = rohAusModell({ schadentag: "01.10.2099", schadennummer: "26-100", schadenort: "Bremen" });
+  assert.equal(roh.ae.schadentag.lesbar, false);
+  assert.equal(roh.ae.schadennummer.wert, "26-100");
+  assert.equal(roh.ae.schadenort.wert, "Bremen");
+});
+
+test("Anwalt nur aus der Vollmacht, nicht der Name des Auftraggebers", () => {
+  const mitVollmacht = rohAusModell({
+    auftraggeber: { anrede: "Herr", name: "Aras Dawd Psi", strasse: "Nimweger Str. 13", plz: "28259", ort: "Bremen" },
+    anwalt: "Kanzlei Meier",
+  }, { vollmacht: true });
+  assert.equal(mitVollmacht.ae.anwalt.name, "Kanzlei Meier");
+  const namenVerwechselt = rohAusModell({
+    auftraggeber: { anrede: "Herr", name: "Aras Dawd Psi", strasse: "Nimweger Str. 13", plz: "28259", ort: "Bremen" },
+    anwalt: "Aras Dawd Psi",
+  }, { vollmacht: true });
+  assert.equal(namenVerwechselt.ae.anwalt, undefined);
+  const ohne = rohAusModell({ anwalt: "Kanzlei Meier" }, { vollmacht: false });
+  assert.equal(ohne.ae.anwalt, undefined);
+});
+
+test("Kennzeichen des Unfallgegners bleibt, das eigene Kennzeichen nicht", () => {
+  const roh = rohAusModell({
+    kennzeichenAbtretung: "HB-AA 455",
+    kennzeichenUnfallgegner: "HB-WA 541",
+    versicherung: { name: "HUK Coburg" },
+  });
+  assert.equal(roh.ae.unfallgegnerKennzeichen.wert, "HB-WA 541");
+  assert.equal(roh.ae.versicherung.lesbar, false);
+  const gleich = rohAusModell({
+    kennzeichenAbtretung: "HB-AA 455",
+    kennzeichenUnfallgegner: "HB-AA 455",
+  });
+  assert.equal(gleich.ae.unfallgegnerKennzeichen.lesbar, false);
 });
 
 test("Lesung aus dem Modell übernimmt Plakette und lässt die Vollmacht weg", () => {

@@ -39,6 +39,7 @@ const fotos = {
 
 function adapter(overrides = {}) {
   const basis = {
+    auftrag: async () => {},
     besichtigung: async () => {},
     beteiligte: async () => {},
     fahrzeug: async () => {},

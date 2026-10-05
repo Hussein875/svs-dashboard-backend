@@ -42,6 +42,7 @@ function adapter() {
     },
   };
   for (const id of [
+    "auftrag",
     "besichtigung",
     "beteiligte",
     "fahrzeug",

@@ -62,6 +62,8 @@ export function lesungOffen(datensatz) {
   if (!String(datensatz?.getriebe?.wert || "").trim()) namen.push("Getriebe (fehlt)");
   if (!String(datensatz?.fahrbereitschaft || "").trim()) namen.push("Fahrbereitschaft (fehlt)");
   if (!datensatz?.bereifung || datensatz.bereifung.lesbar === false) namen.push("Bereifung (fehlt)");
+  if (!String(datensatz?.unfallgegnerKennzeichen?.wert || "").trim()) namen.push("Unfallgegner-Kennzeichen (fehlt)");
+  if (datensatz?.vollmacht === true && !String(datensatz?.anwalt?.name || "").trim()) namen.push("Anwalt (unleserlich)");
   if (!String(datensatz?.schilderung || "").trim()) namen.push("Schilderung (fehlt)");
   return namen;
 }
@@ -72,6 +74,7 @@ function lesbareLogzeile(zeile) {
   try {
     const eintrag = JSON.parse(text);
     const namen = {
+      auftrag: "Auftrag",
       beteiligte: "Beteiligte",
       besichtigung: "Besichtigung",
       fahrzeug: "Fahrzeug",

@@ -98,26 +98,25 @@ async function wiederAnmelden(page, ziel) {
 
 async function oeffneBesichtigungFallsLeer(page) {
   const ortsfeld = page.locator('[name="surveys.0.location"]').first();
-  if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
+  const knopf = page.locator("button.empty-button.btn-blue").filter({
+    has: page.locator("span", { hasText: /^Neue Besichtigung$/ }),
+  }).first();
 
-  const muster = /Neue Besichtigung/i;
-  const ziele = [
-    page.getByRole("button", { name: muster }),
-    page.getByRole("link", { name: muster }),
-    page.locator("button, a, [role='button']").filter({ hasText: muster }),
-    page.getByText(muster),
-  ];
+  const ende = Date.now() + 15_000;
   let geklickt = false;
-  for (const liste of ziele) {
-    const ziel = liste.first();
-    if (!(await ziel.count())) continue;
-    if (!(await ziel.isVisible().catch(() => false))) continue;
-    await ziel.scrollIntoViewIfNeeded().catch(() => {});
-    await ziel.click();
-    geklickt = true;
-    break;
+  while (Date.now() < ende) {
+    if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
+    if (await knopf.count() && await knopf.isVisible().catch(() => false)) {
+      await knopf.scrollIntoViewIfNeeded().catch(() => {});
+      await knopf.click();
+      geklickt = true;
+      break;
+    }
+    await page.waitForTimeout(300);
   }
-  if (!geklickt) throw new FachlichError("Neue Besichtigung nicht gefunden");
+  if (!geklickt && !(await ortsfeld.isVisible().catch(() => false))) {
+    throw new FachlichError("Neue Besichtigung nicht gefunden");
+  }
 
   await ortsfeld.waitFor({ state: "visible", timeout: 25_000 });
   await warteAufSeite(page);
@@ -197,9 +196,17 @@ export function createPlaywrightSeite(page) {
         werte.set("modell", modell);
         return;
       }
+      if (befehl.typ === "auftrag") {
+        await auftragSchreiben(page, befehl);
+        return;
+      }
       if (befehl.typ === "beteiligter") {
         await beteiligtenSchreiben(page, befehl);
         werte.set(befehl.rolle, befehl.firma || `${befehl.vorname} ${befehl.nachname}`);
+        return;
+      }
+      if (befehl.typ === "versicherung-abfrage") {
+        await versicherungAbfragen(page, befehl.kennzeichen);
         return;
       }
       if (befehl.typ === "vorschaden") {
@@ -381,6 +388,108 @@ async function schreibeFeld(page, name, wert) {
   const gelesen = (await feld.inputValue()).trim();
   if (gelesen !== inhalt) throw new FachlichError(name);
   await page.keyboard.press("Escape").catch(() => {});
+}
+
+function datumSchluessel(wert) {
+  const roh = String(wert || "").trim().toLowerCase();
+  const zahlen = roh.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (zahlen) return `${zahlen[3]}-${zahlen[2].padStart(2, "0")}-${zahlen[1].padStart(2, "0")}`;
+  const monate = {
+    januar: "01", februar: "02", märz: "03", maerz: "03", april: "04", mai: "05", juni: "06",
+    juli: "07", august: "08", september: "09", oktober: "10", november: "11", dezember: "12",
+  };
+  const lang = roh.match(/(\d{1,2})\.?\s+([a-zäöü]+),?\s+(\d{4})/);
+  if (lang && monate[lang[2]]) return `${lang[3]}-${monate[lang[2]]}-${lang[1].padStart(2, "0")}`;
+  return "";
+}
+
+async function schreibeWennPasst(page, name, wert) {
+  const inhalt = String(wert || "").trim();
+  if (!inhalt) return false;
+  const feld = page.locator(`[name="${name}"]`).first();
+  if (!(await feld.count())) return false;
+  await feld.click();
+  await feld.fill(inhalt);
+  await feld.press("Tab").catch(() => {});
+  return (await feld.inputValue()).trim() === inhalt;
+}
+
+async function schreibeSchadentag(page, wert) {
+  const feld = page.locator("[name='damageDate']").first();
+  if (!(await feld.count())) return false;
+  await feld.click();
+  await feld.fill(wert);
+  await feld.press("Tab").catch(() => {});
+  const gelesen = datumSchluessel(await feld.inputValue());
+  return gelesen !== "" && gelesen === datumSchluessel(wert);
+}
+
+async function auftragSchreiben(page, befehl) {
+  await schliesseStoerungen(page);
+  let geschrieben = 0;
+  const paare = [
+    ["licensePlate", befehl.kennzeichen],
+    ["vehicle.vin", befehl.fin],
+    ["damageNr", befehl.schadennummer],
+    ["insuranceNr", befehl.versicherungsnummer],
+    ["damageLocation", befehl.schadenort],
+    ["damageStreet", befehl.schadenstrasse],
+  ];
+  for (const [name, inhalt] of paare) {
+    if (await schreibeWennPasst(page, name, inhalt)) geschrieben += 1;
+  }
+  if (befehl.schadentag && await schreibeSchadentag(page, befehl.schadentag)) geschrieben += 1;
+  if (befehl.sachverstaendiger) {
+    try {
+      await waehleFeld(page, "Sachverständiger", befehl.sachverstaendiger);
+      geschrieben += 1;
+    } catch {
+      // Die Auswahl bleibt leer. Die übrigen Felder werden gespeichert.
+    }
+  }
+  if (befehl.unfallgegner) {
+    try {
+      await versicherungAbfragen(page, befehl.unfallgegner);
+      geschrieben += 1;
+    } catch {
+      const inhalt = await page.locator("[name='opponentLicensePlate']").first().inputValue().catch(() => "");
+      if (String(inhalt).trim()) geschrieben += 1;
+    }
+  }
+  if (!geschrieben) throw new FachlichError("Auftragsdaten fehlen");
+}
+
+async function versicherungAbfragen(page, kennzeichen) {
+  await schliesseStoerungen(page);
+  const feld = page.locator("[name='opponentLicensePlate']").first();
+  await feld.waitFor({ state: "visible", timeout: 15000 });
+  await feld.click();
+  await feld.fill(kennzeichen);
+  const gelesen = (await feld.inputValue()).trim();
+  if (gelesen !== kennzeichen) throw new FachlichError("Unfallgegner-Kennzeichen");
+  const suche = feld.locator("xpath=following::button[@title='Versicherungsdaten über Z@Online abfragen'][1]");
+  await suche.waitFor({ state: "visible", timeout: 10000 });
+  const bereit = await suche.isEnabled().catch(() => false);
+  if (!bereit) {
+    await page.waitForTimeout(500);
+  }
+  if (!(await suche.isEnabled().catch(() => false))) {
+    throw new FachlichError("Versicherung über Kennzeichen nicht abgefragt");
+  }
+  await suche.click();
+  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+  const dialog = page.locator(".modal-content, [role='dialog']").last();
+  if (await dialog.isVisible().catch(() => false)) {
+    const text = await dialog.innerText().catch(() => "");
+    if (/nicht gefunden|kein Treffer|keine Daten/i.test(text)) {
+      const zu = dialog.getByRole("button", { name: /Abbrechen|Schließen|OK/i }).first();
+      if (await zu.count()) await zu.click().catch(() => {});
+      throw new FachlichError("Versicherung zum Kennzeichen nicht gefunden");
+    }
+    const ja = dialog.getByRole("button", { name: /Übernehmen|Hinzufügen|Speichern/i }).first();
+    if (await ja.count() && await ja.isVisible().catch(() => false)) await ja.click();
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  }
 }
 
 async function beteiligtenSchreiben(page, befehl) {

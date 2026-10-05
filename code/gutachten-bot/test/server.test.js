@@ -25,6 +25,7 @@ test("ohne Anmeldung kein Start, mit PIN kommt der Live-Schritt", async () => {
     db,
     pin: "2468",
     starteEingabe: (state, log) => eingeben(state, {
+      auftrag: async () => {},
       besichtigung: async () => {},
       beteiligte: async () => {},
       fahrzeug: async () => {},

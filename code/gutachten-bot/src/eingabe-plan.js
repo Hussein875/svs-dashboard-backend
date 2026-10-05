@@ -148,14 +148,36 @@ function beteiligte(daten) {
     });
   }
   const anwalt = String(daten.anwalt?.name || "").trim();
-  if (daten.vollmacht !== false && daten.anwalt && daten.anwalt.lesbar !== false && anwalt) {
+  if (daten.vollmacht === true && daten.anwalt && daten.anwalt.lesbar !== false && anwalt) {
     befehle.push({ typ: "beteiligter", rolle: "Anwalt", anrede: "Firma", firma: anwalt });
   }
-  const versicherung = String(daten.versicherung?.name || "").trim();
-  if (daten.versicherung && daten.versicherung.lesbar !== false && versicherung) {
-    befehle.push({ typ: "beteiligter", rolle: "Versicherung", anrede: "Firma", firma: versicherung });
-  }
   return { id: "beteiligte", speichern: true, befehle };
+}
+
+function auftrag(daten) {
+  const befehl = {
+    typ: "auftrag",
+    kennzeichen: wert(daten.kennzeichen),
+    fin: wert(daten.fin),
+    schadentag: wert(daten.schadentag),
+    schadennummer: wert(daten.schadennummer),
+    versicherungsnummer: wert(daten.versicherungsnummer),
+    schadenort: wert(daten.schadenort),
+    schadenstrasse: wert(daten.schadenstrasse),
+    sachverstaendiger: sachverstaendigerName(daten.kuerzel),
+    unfallgegner: daten.unfallgegnerKennzeichen?.lesbar === false ? "" : wert(daten.unfallgegnerKennzeichen),
+  };
+  const hatInhalt = ["kennzeichen", "fin", "schadentag", "schadennummer", "versicherungsnummer", "schadenort", "schadenstrasse", "sachverstaendiger", "unfallgegner"]
+    .some((feld) => befehl[feld]);
+  if (!hatInhalt) return fachlich("auftrag", "Auftragsdaten fehlen");
+  return {
+    id: "auftrag",
+    speichern: true,
+    befehle: [
+      { typ: "seite", pfad: "order/general" },
+      befehl,
+    ],
+  };
 }
 
 function fahrzeug(daten) {
@@ -339,6 +361,7 @@ function schadenfeststellung(daten) {
 export function eingabePlan(daten) {
   const quelle = daten || {};
   return {
+    auftrag: auftrag(quelle),
     besichtigung: besichtigung(quelle),
     beteiligte: beteiligte(quelle),
     fahrzeug: fahrzeug(quelle),

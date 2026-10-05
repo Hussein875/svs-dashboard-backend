@@ -3,6 +3,7 @@ export const SCHRITTE = [
   { id: "fotos-auswerten", phase: "analyse", stand: "eingelesen" },
   { id: "pflichtfelder-pruefen", phase: "analyse", stand: "geprueft" },
   { id: "report-schreiben", phase: "analyse", stand: null },
+  { id: "auftrag", phase: "eingabe", stand: "eingetippt" },
   { id: "beteiligte", phase: "eingabe", stand: "eingetippt" },
   { id: "besichtigung", phase: "eingabe", stand: "eingetippt" },
   { id: "fahrzeug", phase: "eingabe", stand: "eingetippt" },

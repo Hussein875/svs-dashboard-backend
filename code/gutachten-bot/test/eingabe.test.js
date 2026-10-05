@@ -41,6 +41,7 @@ function datensatz() {
     erstzulassung: { wert: "14.05.2020", lesbar: true },
     getriebe: { wert: "Automatik", lesbar: true },
     hu: { wert: "05.2027", lesbar: true },
+    vollmacht: true,
     anwalt: { name: "Kanzlei Beispiel", lesbar: true },
     versicherung: { name: "Versicherung Beispiel", lesbar: true },
     gegner: { name: "Kathrin Gegner" },
@@ -70,6 +71,8 @@ test("Plan übernimmt nur lesbare Felder und lässt Gegner und HSN weg", () => {
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "surveys.0.location").wert, "Weg 1, 20095 Hamburg");
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "Sachverständiger").wert, "Hussein Souleiman");
   assert.equal(plan.beteiligte.befehle.find((befehl) => befehl.rolle === "Anwalt").anrede, "Firma");
+  assert.equal(plan.beteiligte.befehle.some((befehl) => befehl.rolle === "Versicherung"), false);
+  assert.equal(JSON.stringify(plan.beteiligte).includes("Versicherung Beispiel"), false);
   assert.equal(plan.fahrzeug.befehle.find((befehl) => befehl.feld === "vehicle.vin").wert, "WVWZZZCDZLW002977");
   assert.equal(
     plan.bereifung.befehle.some((befehl) => befehl.typ === "waehle" && befehl.feld === "Felgen" && befehl.wert === "Aluminium"),
@@ -108,6 +111,25 @@ test("abweichender Scheinname wird Fahrzeughalter, gleicher Name nicht", () => {
   assert.equal(ohneHalter.length, 0);
 });
 
+test("Ohne Vollmacht gibt es keinen Anwalt", () => {
+  const daten = datensatz();
+  daten.vollmacht = false;
+  const rollen = eingabePlan(daten).beteiligte.befehle.filter((befehl) => befehl.rolle === "Anwalt");
+  assert.equal(rollen.length, 0);
+});
+
+test("Versicherung kommt aus dem Kennzeichen des Unfallgegners", () => {
+  const daten = datensatz();
+  daten.unfallgegnerKennzeichen = { wert: "HH-CD 200", lesbar: true };
+  const plan = eingabePlan(daten);
+  const abfrage = plan.auftrag.befehle.find((befehl) => befehl.typ === "auftrag");
+  assert.equal(abfrage.unfallgegner, "HH-CD 200");
+  assert.equal(abfrage.kennzeichen, "HH-AB 100");
+  assert.equal(abfrage.fin, "WVWZZZCDZLW002977");
+  assert.equal(plan.auftrag.befehle.some((befehl) => befehl.pfad === "order/general"), true);
+  assert.equal(plan.beteiligte.befehle.some((befehl) => befehl.rolle === "Versicherung"), false);
+});
+
 test("Fahrbereitschaft und Modell werden eindeutig gewählt", () => {
   const optionen = ["verkehrssicher", "fahrfähig (nicht verkehrssicher)", "nicht fahrbereit"];
   assert.equal(waehleOption(optionen, "nicht verkehrssicher"), "fahrfähig (nicht verkehrssicher)");
@@ -139,11 +161,12 @@ test("Eingabe speichert die bekannten Schritte und stoppt vor dem Dokumenten-Imp
       log: (zeile) => zeilen.push(zeile),
     });
     assert.equal(ergebnis.stand, "pausiert");
+    assert.equal(getVorgang(db, "2400/26").schritte.auftrag, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte.besichtigung, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte.fahrzeug, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte.bereifung, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte["dokumente-import"], "offen");
-    assert.equal(seite.gespeichert.length, 6);
+    assert.equal(seite.gespeichert.length, 7);
     assert.equal(seite.gespeichert.some((stand) => JSON.stringify(stand).includes("HH-AB 100")), false);
     assert.equal(zeilen.some((zeile) => zeile.includes("HH-AB 100") || zeile.includes("Beispiel")), false);
     assert.equal(seite.geoeffnet.includes("2083/26"), false);
