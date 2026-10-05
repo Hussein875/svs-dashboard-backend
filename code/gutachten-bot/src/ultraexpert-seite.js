@@ -11,11 +11,11 @@ export async function fuehreSchritt(seite, schritt) {
     if (UNSICHERE_TYPEN.has(befehl.typ)) throw new NichtUmgesetztError(schritt.id);
     await seite.ausfuehren(befehl);
   }
-  if (schritt.speichern) {
-    const pruefung = await seite.pruefe();
-    if (!pruefung?.ok) throw new FachlichError("Rücklesen fehlgeschlagen");
-    await seite.speichern();
-  }
+  if (!schritt.speichern) return { gespeichert: false };
+  const pruefung = await seite.pruefe();
+  if (!pruefung?.ok) throw new FachlichError("Rücklesen fehlgeschlagen");
+  await seite.speichern();
+  return { gespeichert: true };
 }
 
 export function fakeSeite(optionen = {}) {
@@ -76,6 +76,26 @@ async function warteAufSeite(page) {
   await schliesseStoerungen(page);
 }
 
+async function wiederAnmelden(page, ziel) {
+  if (!String(page.url()).includes("/login")) return;
+  const kunde = page.locator("input[name='customerNr']").first();
+  await kunde.waitFor({ state: "visible", timeout: 15_000 });
+  const kundenNr = process.env.UX_USERNAME || process.env.UX_CUSTOMER_NR || "";
+  await kunde.fill(kundenNr);
+  await page.locator("input[type='password']").first().fill(process.env.UX_PASSWORD || "");
+  const mandant = page.locator("input[name='mandant']").first();
+  if (process.env.UX_MANDANT && await mandant.count()) await mandant.fill(process.env.UX_MANDANT);
+  await page.getByRole("button", { name: /Anmelden|Login/i }).first().click();
+  await page.waitForURL((url) => !String(url).includes("/login"), { timeout: 20_000 });
+  if (ziel) {
+    await page.goto(ziel, { waitUntil: "domcontentloaded" });
+    await warteAufSeite(page);
+  }
+  if (String(page.url()).includes("/login")) {
+    throw new FachlichError("Anmeldung bei UltraExpert fehlgeschlagen");
+  }
+}
+
 async function oeffneBesichtigungFallsLeer(page) {
   const ortsfeld = page.locator('[name="surveys.0.location"]').first();
   if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
@@ -131,8 +151,10 @@ export function createPlaywrightSeite(page) {
     async ausfuehren(befehl) {
       if (befehl.typ === "seite") {
         if (!dossierId) throw new FachlichError("Akte fehlt");
-        await page.goto(`${base}home/dossiers/edit/${dossierId}/${befehl.pfad}`, { waitUntil: "domcontentloaded" });
+        const ziel = `${base}home/dossiers/edit/${dossierId}/${befehl.pfad}`;
+        await page.goto(ziel, { waitUntil: "domcontentloaded" });
         await warteAufSeite(page);
+        await wiederAnmelden(page, ziel);
         if (befehl.pfad === "surveys") {
           await oeffneBesichtigungFallsLeer(page);
         }
@@ -199,9 +221,19 @@ export function createPlaywrightSeite(page) {
       return { ok: true };
     },
     async speichern() {
-      await page.locator("button").filter({ hasText: "Speichern" }).last().click();
-      await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
-      werte.clear();
+      const knopf = await sichtbarerKnopf(page, /^Speichern$/i);
+      if (knopf) {
+        await knopf.click();
+        await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+        werte.clear();
+        return;
+      }
+      const adresse = String(page.url());
+      if (adresse.includes("/participants") && !adresse.includes("/edit")) {
+        werte.clear();
+        return;
+      }
+      throw new FachlichError("Speichern nicht gefunden");
     },
   };
 }
@@ -292,18 +324,89 @@ async function vorschadenSchreiben(page, befehl) {
   }, befehl.html);
 }
 
+const BETEILIGUNG = {
+  Auftraggeber: "AG Auftraggeber",
+  Fahrzeughalter: "FH Fahrzeughalter",
+  Versicherung: "VS Versicherung",
+  Anwalt: "RA Rechtsanwalt",
+};
+
+const KONTAKTTYP = {
+  Auftraggeber: "Kontakt",
+  Fahrzeughalter: "Kontakt",
+  Versicherung: "Versicherung",
+  Anwalt: "RA-Kanzlei",
+};
+
+export function beteiligungText(rolle) {
+  return BETEILIGUNG[rolle] || "";
+}
+
+async function sichtbarerKnopf(page, muster) {
+  const ziele = [
+    page.getByRole("button", { name: muster }),
+    page.locator("button, a.btn, [role='button']").filter({ hasText: muster }),
+  ];
+  for (const liste of ziele) {
+    const knopf = liste.first();
+    if (await knopf.count() && await knopf.isVisible().catch(() => false)) return knopf;
+  }
+  return null;
+}
+
+async function waehleReactAuswahl(page, klasse, text) {
+  const control = page.locator(`.select-container.${klasse} [class*='control']`).first();
+  if (!(await control.count())) throw new FachlichError(text);
+  await control.click();
+  const optionen = page.locator("[role='option'], [id*='option']");
+  await optionen.first().waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+  const anzahl = await optionen.count();
+  for (let index = 0; index < anzahl; index += 1) {
+    const inhalt = (await optionen.nth(index).innerText()).replace(/\s+/g, " ").trim();
+    if (inhalt === text) {
+      await optionen.nth(index).click();
+      await page.keyboard.press("Escape").catch(() => {});
+      return;
+    }
+  }
+  throw new FachlichError(text);
+}
+
+async function schreibeFeld(page, name, wert) {
+  const inhalt = String(wert || "").trim();
+  if (!inhalt) throw new FachlichError(name);
+  const feld = page.locator(`[name="${name}"]`).first();
+  await feld.click();
+  await feld.fill(inhalt);
+  const gelesen = (await feld.inputValue()).trim();
+  if (gelesen !== inhalt) throw new FachlichError(name);
+  await page.keyboard.press("Escape").catch(() => {});
+}
+
 async function beteiligtenSchreiben(page, befehl) {
-  const knopf = page.getByRole("button", { name: /Neuer Beteiligter|Beteiligten hinzufügen|Hinzufügen/i }).first();
+  await schliesseStoerungen(page);
+  const knopf = page.getByRole("button", { name: /Neuer Beteiligter/i }).first();
   if (!(await knopf.count())) throw new NichtUmgesetztError("beteiligte");
   await knopf.click();
-  await waehleFeld(page, "Anrede", befehl.anrede);
+  await page.locator("[name='firstName']").first().waitFor({ state: "visible", timeout: 15000 });
+  const beteiligung = beteiligungText(befehl.rolle);
+  const kontakttyp = KONTAKTTYP[befehl.rolle];
+  if (!beteiligung || !kontakttyp) throw new FachlichError(befehl.rolle || "Beteiligung");
+  await waehleReactAuswahl(page, "__field_involvementTypes", beteiligung);
+  await waehleReactAuswahl(page, "__field_type", kontakttyp);
+  await waehleReactAuswahl(page, "__field_title", befehl.anrede);
   if (befehl.firma) {
-    const feld = page.getByLabel(/Firma|Name/i).first();
-    await feld.fill(befehl.firma);
-    return;
+    await schreibeFeld(page, "companyName", befehl.firma);
+  } else {
+    await schreibeFeld(page, "firstName", befehl.vorname);
+    await schreibeFeld(page, "lastName", befehl.nachname);
+    await schreibeFeld(page, "street", befehl.strasse);
+    await schreibeFeld(page, "zipCode", befehl.plz);
+    await schreibeFeld(page, "city", befehl.ort);
   }
-  await page.getByLabel("Vorname", { exact: true }).fill(befehl.vorname);
-  await page.getByLabel("Nachname", { exact: true }).fill(befehl.nachname);
-  await page.getByLabel("Straße, Nr.", { exact: true }).fill(befehl.strasse);
-  await page.getByLabel("PLZ / Ort", { exact: true }).fill(`${befehl.plz} ${befehl.ort}`);
+  const hinzu = await sichtbarerKnopf(page, /^Hinzufügen$/i);
+  if (!hinzu) throw new FachlichError("Hinzufügen nicht gefunden");
+  await hinzu.click();
+  await page.waitForURL((url) => !String(url).includes("/participants/edit"), { timeout: 20000 });
+  await warteAufSeite(page);
 }

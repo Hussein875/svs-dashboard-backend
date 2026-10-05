@@ -9,7 +9,7 @@ export function createUltraExpertAdapter({ seite, oeffnen } = {}) {
 
   async function schritt(id, datensatz) {
     const plan = eingabePlan(datensatz);
-    await fuehreSchritt(aktiv, plan[id]);
+    return fuehreSchritt(aktiv, plan[id]);
   }
 
   const methoden = {

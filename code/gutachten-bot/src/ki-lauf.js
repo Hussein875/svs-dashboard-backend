@@ -66,6 +66,39 @@ export function lesungOffen(datensatz) {
   return namen;
 }
 
+function lesbareLogzeile(zeile) {
+  const text = String(zeile || "").trim();
+  if (!text.startsWith("{")) return text;
+  try {
+    const eintrag = JSON.parse(text);
+    const namen = {
+      beteiligte: "Beteiligte",
+      besichtigung: "Besichtigung",
+      fahrzeug: "Fahrzeug",
+      bereifung: "Bereifung",
+      "vor-ort": "Vor Ort",
+      vorschaeden: "Vorschäden",
+      schadenfeststellung: "Schadenfeststellung",
+      "dokumente-import": "Dokumente",
+      lichtbilder: "Lichtbilder",
+      eingabe: "Eingabe",
+    };
+    const staende = {
+      laeuft: "läuft",
+      erledigt: "fertig",
+      offen: "übersprungen",
+      fehler: "Fehler",
+      wartet: "wartet",
+    };
+    const schritt = namen[eintrag?.schritt] || String(eintrag?.schritt || "").trim();
+    const status = staende[eintrag?.status] || String(eintrag?.status || "").trim();
+    if (schritt && status) return `${schritt}: ${status}`;
+    return schritt || text;
+  } catch {
+    return text;
+  }
+}
+
 function zustandPfad(nummer) {
   const basis = process.env.GUTACHTEN_STATE_DIR || path.join("/tmp", "gutachten-ki-state");
   mkdirSync(basis, { recursive: true });
@@ -166,7 +199,7 @@ export async function runKiGutachten({
   const db = openState(zustandPfad(nummer));
 
   const log = (zeile) => {
-    if (typeof zeile === "string") onStep?.(zeile);
+    if (typeof zeile === "string") onStep?.(lesbareLogzeile(zeile));
     else if (zeile?.schritt) onStep?.(`${zeile.schritt}: ${zeile.status}`);
   };
 
@@ -196,11 +229,14 @@ export async function runKiGutachten({
     const stand = ergebnis.stand || "unbekannt";
     const manuell = quelle.luecken || [];
     const uebersprungen = Array.isArray(ergebnis.offen) ? ergebnis.offen : [];
+    const gespeichert = Array.isArray(ergebnis.gespeichert) ? ergebnis.gespeichert : [];
     let message;
-    if (manuell.length || uebersprungen.length || stand === "pausiert" || stand === "teilweise") {
-      message = `Akte ${nummer}: lesbare Angaben sind eingetragen.`;
+    if (gespeichert.length || uebersprungen.length || manuell.length || stand === "pausiert" || stand === "teilweise") {
+      message = gespeichert.length
+        ? `Akte ${nummer}: gespeichert: ${gespeichert.join(", ")}.`
+        : `Akte ${nummer}: nichts gespeichert.`;
       if (manuell.length) message += ` Manuell nachtragen: ${manuell.join(", ")}.`;
-      if (uebersprungen.length) message += ` Übersprungen: ${uebersprungen.join(", ")}.`;
+      if (uebersprungen.length) message += ` Nicht geschafft: ${uebersprungen.join(", ")}.`;
     } else if (stand === "wartet_auf_eingabe") {
       const wo = ergebnis.schritt ? ` bei ${ergebnis.schritt}` : "";
       message = `Akte ${nummer}: Eingabe wartet${wo}: ${ergebnis.detail || "Pflichtfeld/UX"}`;

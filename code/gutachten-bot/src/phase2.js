@@ -55,17 +55,20 @@ export async function eingeben(db, adapter, options = {}) {
 
       if (adapter.vorbereiten) await adapter.vorbereiten(auftrag.nummer);
       const offen = [];
+      const gespeichert = [];
       for (const schrittId of EINGABE) {
         letzterSchritt = schrittId;
         log({ schritt: schrittId, status: "laeuft" });
         try {
+          let lauf = null;
           await akte.runSchritt(schrittId, async () => {
             const methode = adapter[schrittId];
             if (typeof methode !== "function") {
               throw new FachlichError("Schritt fehlt");
             }
-            await mitWiederholung(() => methode(auftrag.datensatz), { maxVersuche, sleep });
+            lauf = await mitWiederholung(() => methode(auftrag.datensatz), { maxVersuche, sleep });
           });
+          if (lauf?.gespeichert) gespeichert.push(schrittId);
         } catch (error) {
           if (options.nacheinander === true && error?.code !== "BOT_STOPPED") {
             const grund = String(error?.message || schrittId).trim();
@@ -80,11 +83,13 @@ export async function eingeben(db, adapter, options = {}) {
       }
       if (options.nacheinander === true && offen.length > 0) {
         setzeQueueStatus(db, auftrag.id, "pausiert");
-        return { gestartet: true, nummer: auftrag.nummer, stand: "teilweise", offen };
+        return { gestartet: true, nummer: auftrag.nummer, stand: "teilweise", offen, gespeichert };
       }
+      return { gespeichert };
     });
 
     if (innen?.stand === "teilweise") return innen;
+    const gespeichert = innen?.gespeichert || [];
 
     setzeQueueStatus(db, auftrag.id, "erledigt");
     log({ schritt: "eingabe", status: "erledigt" });
@@ -92,6 +97,7 @@ export async function eingeben(db, adapter, options = {}) {
       gestartet: true,
       nummer: auftrag.nummer,
       stand: getVorgang(db, auftrag.nummer).stand,
+      gespeichert,
     };
   } catch (error) {
     if (error?.code === "NICHT_UMGESETZT") {
