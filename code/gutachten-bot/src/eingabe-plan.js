@@ -8,6 +8,7 @@ const EXPERTEN = {
   HJ: "Hussein Jaber",
   B: "Hussein Selman",
   OS: "Osama Sleiman",
+  HK: "Hassan Khodr",
 };
 
 const FAHRBEREIT = new Set(["verkehrssicher", "nicht verkehrssicher", "nicht fahrbereit"]);
@@ -166,10 +167,9 @@ function auftrag(daten) {
     schadenstrasse: wert(daten.schadenstrasse),
     sachverstaendiger: sachverstaendigerName(daten.kuerzel),
     unfallgegner: daten.unfallgegnerKennzeichen?.lesbar === false ? "" : wert(daten.unfallgegnerKennzeichen),
+    erteilung: "telefonisch",
+    erteiltDurch: "den Auftraggeber",
   };
-  const hatInhalt = ["kennzeichen", "fin", "schadentag", "schadennummer", "versicherungsnummer", "schadenort", "schadenstrasse", "sachverstaendiger", "unfallgegner"]
-    .some((feld) => befehl[feld]);
-  if (!hatInhalt) return fachlich("auftrag", "Auftragsdaten fehlen");
   return {
     id: "auftrag",
     speichern: true,

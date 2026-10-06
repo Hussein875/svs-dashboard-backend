@@ -424,6 +424,27 @@ async function schreibeSchadentag(page, wert) {
   return gelesen !== "" && gelesen === datumSchluessel(wert);
 }
 
+async function erteilungSetzen(page, wert) {
+  const ziel = String(wert || "").trim().toLowerCase();
+  const label = page.locator("label").filter({ hasText: /^Erteilung\b/ }).first();
+  if (!(await label.count())) throw new FachlichError("Erteilung");
+  const control = label.locator("xpath=following::div[contains(@class,'-control')][1]");
+  await control.click({ timeout: 15_000 });
+  const optionen = page.locator("[role='option'], [id*='option']");
+  await optionen.first().waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+  const anzahl = await optionen.count();
+  for (let index = 0; index < anzahl; index += 1) {
+    const inhalt = (await optionen.nth(index).innerText()).replace(/\s+/g, " ").trim();
+    if (inhalt.toLowerCase() === ziel) {
+      await optionen.nth(index).click();
+      await page.keyboard.press("Escape").catch(() => {});
+      return;
+    }
+  }
+  await page.keyboard.press("Escape").catch(() => {});
+  throw new FachlichError("Erteilung");
+}
+
 async function auftragSchreiben(page, befehl) {
   await schliesseStoerungen(page);
   let geschrieben = 0;
@@ -439,6 +460,13 @@ async function auftragSchreiben(page, befehl) {
     if (await schreibeWennPasst(page, name, inhalt)) geschrieben += 1;
   }
   if (befehl.schadentag && await schreibeSchadentag(page, befehl.schadentag)) geschrieben += 1;
+  await erteilungSetzen(page, befehl.erteilung || "telefonisch");
+  if (await schreibeWennPasst(page, "orderPlacer", befehl.erteiltDurch || "den Auftraggeber")) {
+    geschrieben += 1;
+  } else {
+    throw new FachlichError("Erteilt durch");
+  }
+  geschrieben += 1;
   if (befehl.sachverstaendiger) {
     try {
       await waehleFeld(page, "Sachverständiger", befehl.sachverstaendiger);

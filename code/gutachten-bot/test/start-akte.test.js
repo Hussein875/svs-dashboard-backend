@@ -52,6 +52,7 @@ test("Ordnername liefert Nummer und Kürzel", () => {
     kuerzel: "HU",
   });
   assert.equal(sachverstaendigerName("OS"), "Osama Sleiman");
+  assert.equal(sachverstaendigerName("HK"), "Hassan Khodr");
 });
 
 test("ein unbekannter Sachverständiger startet keine Eingabe", async () => {

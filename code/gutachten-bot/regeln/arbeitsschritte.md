@@ -23,7 +23,7 @@ Je Vorgangsnummer, in dieser Reihenfolge: `eingelesen`, `geprueft`, `eingetippt`
 
 Phase 2 folgt der **linken Menüleiste** in UltraExpert: **Auftrag → Beteiligte → Besichtigungen → Fahrzeug** und danach Bereifung usw.
 
-Der Reiter **Auftrag** wird ausgefüllt: Kennzeichen, Kennzeichen des Unfallgegners mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße und Sachverständiger aus der Klammer im Ordnernamen. Aktenzeichen und Weitere Sachbearbeiter bleiben unangetastet. Die Zuweisung läuft über **Zuweisen** im Dashboard.
+Der Reiter **Auftrag** wird ausgefüllt: Kennzeichen, Kennzeichen des Unfallgegners mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße und Sachverständiger aus der Klammer im Ordnernamen. Erteilung ist immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen und Weitere Sachbearbeiter bleiben unangetastet. Die Zuweisung läuft über **Zuweisen** im Dashboard.
 
 ## Mit KI bearbeiten (Dashboard → assign-service)
 
@@ -52,9 +52,9 @@ Diese Schritte dürfen später für mehrere Akten parallel laufen. Sie schreiben
 
 Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfung erledigt ist.
 
-5. `auftrag` — Kennzeichen, Unfallgegner-Kennzeichen mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße, Sachverständiger. Aktenzeichen nicht ändern.
+5. `auftrag` — Kennzeichen, Unfallgegner-Kennzeichen mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße, Sachverständiger. Erteilung immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen nicht ändern.
 6. `beteiligte` — Liegt eine Vollmacht im Drive-Ordner, den Kanzleinamen daraus lesen und als Anwalt mit Anrede „Firma“ eintragen. Ohne Vollmacht keinen Anwalt. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht. Die Versicherung nicht als Name abtippen.
-7. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman.
+7. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman, `(HK)` Hassan Khodr.
 8. `fahrzeug` — Fahrzeug über die FIN identifizieren, nicht über HSN/TSN. Variante nach FIN, Erstzulassung und Getriebe. Nächste HU von der Plakette am Kennzeichen oder von der BD, nicht aus dem abgelaufenen Stempel im Schein. Getriebe am Wählhebel prüfen, wenn der Schein es nicht hergibt.
 9. `bereifung` — Profiltiefe, Hersteller, Dimension, Felgen. Oberes Kreuz Stahl, unteres Aluminium. Fehlt das auf der BD, die Reifenfotos lesen und nur übernehmen, was auf Flanke, Messschieber oder Felge lesbar ist. Reifentyp, Modell und Bemerkung leer.
 10. `vor-ort` — Bedingungen ausreichend, Hebebühne leer, Zustand unrepariert, Identifizierung FZ-Schein. Scheckheft nur bei Kreuz auf der BD, dann Fachwerkstatt. Probelauf Antrieb durchgeführt. Allgemeinzustand gepflegt, normale Gebrauchsspuren. Schilderung aus der BD. Polizei nur eintragen, wenn auf der BD angekreuzt. Plausibilität plausibel.

@@ -124,6 +124,8 @@ test("Versicherung kommt aus dem Kennzeichen des Unfallgegners", () => {
   const plan = eingabePlan(daten);
   const abfrage = plan.auftrag.befehle.find((befehl) => befehl.typ === "auftrag");
   assert.equal(abfrage.unfallgegner, "HH-CD 200");
+  assert.equal(abfrage.erteilung, "telefonisch");
+  assert.equal(abfrage.erteiltDurch, "den Auftraggeber");
   assert.equal(abfrage.kennzeichen, "HH-AB 100");
   assert.equal(abfrage.fin, "WVWZZZCDZLW002977");
   assert.equal(plan.auftrag.befehle.some((befehl) => befehl.pfad === "order/general"), true);
