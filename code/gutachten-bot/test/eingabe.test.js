@@ -83,9 +83,14 @@ test("Plan übernimmt nur lesbare Felder und lässt Gegner und HSN weg", () => {
   assert.equal(plan.schadenfeststellung.befehle.find((befehl) => befehl.feld === "airbagReleased").wert, "Nein");
 
   const unleserlich = datensatz();
-  unleserlich.bereifung = { ...unleserlich.bereifung, lesbar: false, profiltiefe: "6" };
-  assert.equal(eingabePlan(unleserlich).bereifung.fachlich, "Bereifung fehlt");
-  assert.equal(JSON.stringify(eingabePlan(unleserlich).bereifung).includes("Michelin"), false);
+  unleserlich.bereifung = { lesbar: false };
+  assert.equal(eingabePlan(unleserlich).bereifung.befehle.length, 0);
+  assert.equal(eingabePlan(unleserlich).bereifung.speichern, false);
+  const teilweise = datensatz();
+  teilweise.bereifung = { profiltiefe: "6", hersteller: "", dimension: "205/55 R16", felgen: "", lesbar: false };
+  const reifenPlan = eingabePlan(teilweise).bereifung;
+  assert.equal(reifenPlan.befehle.find((befehl) => befehl.feld === "tyres.1.profile").wert, "6");
+  assert.equal(reifenPlan.befehle.some((befehl) => befehl.feld === "Hersteller"), false);
 });
 
 test("abweichender Scheinname wird Fahrzeughalter, gleicher Name nicht", () => {

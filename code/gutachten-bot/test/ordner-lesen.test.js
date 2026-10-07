@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ordneDateien } from "../src/dateien-ordnen.js";
-import { sammleFotoRollen } from "../src/ordner-lesen.js";
+import { gleicheFelder, sammleFotoRollen } from "../src/ordner-lesen.js";
 import { rohAusModell } from "../src/lese-roh.js";
 import { werteLesung } from "../src/lesung.js";
 
@@ -66,9 +66,39 @@ test("Leere Fahrbereitschaft auf der BD ist verkehrssicher", () => {
   assert.equal(ohneBlatt.bd.fahrbereitschaft, "");
 });
 
+test("zwei Lesungen gelten auch bei Str. und zweistelliger Jahreszahl", () => {
+  const felder = gleicheFelder(
+    {
+      auftraggeber: { name: "Ralf-Friedrich Schlemermeyer", strasse: "Bardenflethuser Str. 57", plz: "28259", ort: "Bremen" },
+      schadentag: "30.09.26",
+    },
+    {
+      auftraggeber: { name: "Ralf Friedrich Schlemermeyer", strasse: "Bardenflethuser Straße 57", plz: "28 259", ort: "Bremen" },
+      schadentag: "30.09.2026",
+    },
+  );
+  assert.equal(felder.auftraggeber.name, "Ralf-Friedrich Schlemermeyer");
+  assert.equal(felder.auftraggeber.strasse, "Bardenflethuser Straße 57");
+  assert.equal(felder.auftraggeber.plz, "28259");
+  assert.equal(felder.schadentag, "30.09.2026");
+});
+
+test("Reifenfoto wird auch bei anderer Schreibweise des Dateinamens gefunden", async () => {
+  const fotos = ["IMG_1.JPG", "IMG_2.JPG"].map((name) => ({ name }));
+  const rollen = await sammleFotoRollen(fotos, async (auftrag) => {
+    if (String(auftrag).includes("Nahaufnahmen von Reifen")) return { reifen: ["img_2.jpg"] };
+    return { vorneLinks: "IMG_1.JPG" };
+  });
+  assert.deepEqual(rollen.reifen, ["IMG_2.JPG"]);
+});
+
 test("Schadentag in der Zukunft bleibt leer", () => {
   const roh = rohAusModell({ schadentag: "01.10.2099", schadennummer: "26-100", schadenort: "Bremen" });
   assert.equal(roh.ae.schadentag.lesbar, false);
+  const kurz = rohAusModell({ schadentag: "30.09.26" });
+  assert.equal(kurz.ae.schadentag.wert, "30.09.2026");
+  const auffahrt = rohAusModell({ hergangAuffahrunfall: true }, { bdGelesen: true });
+  assert.equal(auffahrt.bd.hergang[0], "auffahrunfall");
   assert.equal(roh.ae.schadennummer.wert, "26-100");
   assert.equal(roh.ae.schadenort.wert, "Bremen");
 });
@@ -86,6 +116,37 @@ test("Anwalt nur aus der Vollmacht, nicht der Name des Auftraggebers", () => {
   assert.equal(namenVerwechselt.ae.anwalt, undefined);
   const ohne = rohAusModell({ anwalt: "Kanzlei Meier" }, { vollmacht: false });
   assert.equal(ohne.ae.anwalt, undefined);
+});
+
+test("Straße mit angehängtem str. kommt vom Fahrzeugschein", () => {
+  const roh = rohAusModell({
+    halter: { name: "Eva Beispiel", strasse: "Hauptstr. 12", plz: "28195", ort: "Bremen" },
+  });
+  const daten = werteLesung(roh);
+  assert.equal(daten.auftraggeber.name, "Eva Beispiel");
+  assert.equal(daten.auftraggeber.strasse, "Hauptstr. 12");
+  assert.equal(daten.auftraggeber.ort, "Bremen");
+  assert.equal(daten.fahrzeughalter, undefined);
+});
+
+test("fehlender Auftraggeber kommt vom Fahrzeugschein", () => {
+  const roh = rohAusModell({
+    halter: { name: "Ralf Schlemermeyer", strasse: "Bardenflethuser Str. 57", plz: "28259", ort: "Bremen" },
+  });
+  const daten = werteLesung(roh);
+  assert.equal(daten.auftraggeber.name, "Ralf Schlemermeyer");
+  assert.equal(daten.auftraggeber.strasse, "Bardenflethuser Str. 57");
+  assert.equal(daten.auftraggeber.plz, "28259");
+  assert.equal(daten.auftraggeber.ort, "Bremen");
+  assert.equal(daten.fahrzeughalter, undefined);
+
+  const bleibt = rohAusModell({
+    auftraggeber: { anrede: "Herr", name: "Anna Beispiel", strasse: "Weg 1", plz: "20095", ort: "Hamburg" },
+    halter: { name: "Max Halter", strasse: "Andere Str. 2", plz: "28195", ort: "Bremen" },
+  });
+  const getrennt = werteLesung(bleibt);
+  assert.equal(getrennt.auftraggeber.name, "Anna Beispiel");
+  assert.equal(getrennt.fahrzeughalter.name, "Max Halter");
 });
 
 test("Kennzeichen des Unfallgegners bleibt, das eigene Kennzeichen nicht", () => {

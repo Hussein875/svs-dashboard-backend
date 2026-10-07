@@ -69,6 +69,9 @@ export async function eingeben(db, adapter, options = {}) {
             lauf = await mitWiederholung(() => methode(auftrag.datensatz), { maxVersuche, sleep });
           });
           if (lauf?.gespeichert) gespeichert.push(schrittId);
+          if (Array.isArray(lauf?.hinweis) && lauf.hinweis.length) {
+            offen.push(`${schrittId} (${lauf.hinweis.join("; ")})`);
+          }
         } catch (error) {
           if (options.nacheinander === true && error?.code !== "BOT_STOPPED") {
             const grund = String(error?.message || schrittId).trim();

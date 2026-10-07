@@ -96,19 +96,15 @@ function offen(id) {
 function besichtigung(daten) {
   const ort = adresse(daten.auftraggeber);
   const name = sachverstaendigerName(daten.kuerzel);
-  if (!ort) return fachlich("besichtigung", "Besichtigungsadresse fehlt");
-  if (!name) return fachlich("besichtigung", "Sachverständiger fehlt");
-  return {
-    id: "besichtigung",
-    speichern: true,
-    befehle: [
-      { typ: "seite", pfad: "surveys" },
-      { typ: "waehle", feld: "Besichtigungsort", wert: "Auftraggeber" },
-      { typ: "text", feld: "surveys.0.locationName", wert: "" },
-      { typ: "text", feld: "surveys.0.location", wert: ort },
-      { typ: "waehle", feld: "Sachverständiger", wert: name },
-    ],
-  };
+  const befehle = [{ typ: "seite", pfad: "surveys" }];
+  if (ort) {
+    befehle.push({ typ: "waehle", feld: "Besichtigungsort", wert: "Auftraggeber" });
+    befehle.push({ typ: "text", feld: "surveys.0.locationName", wert: "" });
+    befehle.push({ typ: "text", feld: "surveys.0.location", wert: ort });
+  }
+  if (name) befehle.push({ typ: "waehle", feld: "Sachverständiger", wert: name });
+  if (befehle.length === 1) return { id: "besichtigung", speichern: false, befehle: [], wiederholen: "Besichtigung" };
+  return { id: "besichtigung", speichern: true, befehle };
 }
 
 function beteiligte(daten) {
@@ -116,7 +112,7 @@ function beteiligte(daten) {
   const anrede = person.anrede === "Frau" ? "Frau" : "Herr";
   const teile = nameTeile(person.name);
   if (person.lesbar === false || !teile || !adresse(person)) {
-    return fachlich("beteiligte", "Auftraggeber unvollständig");
+    return { id: "beteiligte", speichern: false, befehle: [], wiederholen: "Auftraggeber" };
   }
   const befehle = [
     { typ: "seite", pfad: "participants" },
@@ -186,46 +182,34 @@ function fahrzeug(daten) {
   const getriebe = wert(daten.getriebe);
   const km = wert(daten.kilometerstand);
   const hu = wert(daten.hu);
-  if (!fin) return fachlich("fahrzeug", "Fahrzeugidentifikationsnummer fehlt");
-  if (!ez || !getriebe) return fachlich("fahrzeug", "Erstzulassung oder Getriebe fehlt");
-  if (!km) return fachlich("fahrzeug", "Kilometerstand fehlt");
-  const befehle = [
-    { typ: "seite", pfad: "vehicle/identification" },
-    { typ: "text", feld: "vehicle.vin", wert: fin },
-    { typ: "fin", fin, erstzulassung: ez, getriebe },
-    { typ: "text", feld: "vehicle.milageRead", wert: km },
-    { typ: "datum", feld: "registrationDate_input", wert: ez },
-  ];
+  const befehle = [{ typ: "seite", pfad: "vehicle/identification" }];
+  if (fin) befehle.push({ typ: "text", feld: "vehicle.vin", wert: fin });
+  if (fin && ez && getriebe) befehle.push({ typ: "fin", fin, erstzulassung: ez, getriebe });
+  if (km) befehle.push({ typ: "text", feld: "vehicle.milageRead", wert: km });
+  if (ez) befehle.push({ typ: "datum", feld: "registrationDate_input", wert: ez });
   if (hu) befehle.push({ typ: "datum", feld: "generalInspectionDate_input", wert: hu });
   const farbe = wert(daten.farbe);
   if (farbe) befehle.push({ typ: "text", feld: "vehicle.color", wert: farbe });
+  if (befehle.length === 1) return { id: "fahrzeug", speichern: false, befehle: [], wiederholen: "Fahrzeug" };
   return { id: "fahrzeug", speichern: true, befehle };
 }
 
 function bereifung(daten) {
-  const reifen = daten.bereifung;
-  if (!reifen || reifen.lesbar === false) return fachlich("bereifung", "Bereifung fehlt");
+  const reifen = daten.bereifung || {};
   const profiltiefe = String(reifen.profiltiefe || "").trim();
   const hersteller = String(reifen.hersteller || "").trim();
   const dimension = String(reifen.dimension || "").trim();
   const felgen = String(reifen.felgen || "").trim();
-  if (!profiltiefe || !hersteller || !dimension) return fachlich("bereifung", "Bereifung fehlt");
-  if (felgen !== "Stahl" && felgen !== "Aluminium") return fachlich("bereifung", "Felgen unklar");
-  return {
-    id: "bereifung",
-    speichern: true,
-    befehle: [
-      { typ: "seite", pfad: "vehicle/tyres" },
-      { typ: "text", feld: "tyres.1.profile", wert: profiltiefe },
-      { typ: "waehle", feld: "Hersteller", wert: hersteller },
-      { typ: "waehle", feld: "Dimension", wert: dimension },
-      { typ: "waehle", feld: "Felgen", wert: felgen },
-    ],
-  };
+  const befehle = [{ typ: "seite", pfad: "vehicle/tyres" }];
+  if (profiltiefe) befehle.push({ typ: "text", feld: "tyres.1.profile", wert: profiltiefe });
+  if (hersteller) befehle.push({ typ: "waehle", feld: "Hersteller", wert: hersteller });
+  if (dimension) befehle.push({ typ: "waehle", feld: "Dimension", wert: dimension });
+  if (felgen === "Stahl" || felgen === "Aluminium") befehle.push({ typ: "waehle", feld: "Felgen", wert: felgen });
+  if (befehle.length === 1) return { id: "bereifung", speichern: false, befehle: [], wiederholen: "Bereifung" };
+  return { id: "bereifung", speichern: true, befehle };
 }
 
 function vorOrt(daten) {
-  if (!wert(daten.schilderung)) return fachlich("vor-ort", "Schilderung fehlt");
   const befehle = [
     { typ: "seite", pfad: "inspections" },
     { typ: "waehle", feld: "Besichtigungsbedingungen", wert: "ausreichend" },
@@ -234,8 +218,10 @@ function vorOrt(daten) {
     { typ: "waehle", feld: "Probelauf Antrieb", wert: "durchgeführt" },
     { typ: "waehle", feld: "Allgemeinzustand", wert: "gepflegt" },
     { typ: "waehle", feld: "Plausibilität", wert: "plausibel" },
-    { typ: "label", feld: "Schilderung", wert: wert(daten.schilderung) },
   ];
+  if (wert(daten.schilderung)) {
+    befehle.push({ typ: "label", feld: "Schilderung", wert: wert(daten.schilderung) });
+  }
   if (daten.scheckheft === true) {
     befehle.push({ typ: "waehle", feld: "Scheckheftgepflegt", wert: "Fachwerkstatt" });
   }
@@ -341,17 +327,13 @@ function vorschaeden(daten) {
 
 function schadenfeststellung(daten) {
   const fahrbereitschaft = String(daten.fahrbereitschaft || "").trim().toLowerCase();
-  if (!FAHRBEREIT.has(fahrbereitschaft)) return fachlich("schadenfeststellung", "Fahrbereitschaft fehlt");
   const teile = Array.isArray(daten.beschaedigungen)
     ? daten.beschaedigungen.map((teil) => String(teil).trim()).filter(Boolean)
     : [];
-  if (teile.length === 0) return fachlich("schadenfeststellung", "Schadenbeschreibung fehlt");
-  const befehle = [
-    { typ: "seite", pfad: "condition/vehicle" },
-    { typ: "waehle", feld: "movementType", wert: fahrbereitschaft },
-    { typ: "waehle", feld: "airbagReleased", wert: daten.airbagAusgeloest === true ? "Ja" : "Nein" },
-    { typ: "label", feld: "Schadenbeschreibung", wert: schadenText(teile) },
-  ];
+  const befehle = [{ typ: "seite", pfad: "condition/vehicle" }];
+  if (FAHRBEREIT.has(fahrbereitschaft)) befehle.push({ typ: "waehle", feld: "movementType", wert: fahrbereitschaft });
+  befehle.push({ typ: "waehle", feld: "airbagReleased", wert: daten.airbagAusgeloest === true ? "Ja" : "Nein" });
+  if (teile.length) befehle.push({ typ: "label", feld: "Schadenbeschreibung", wert: schadenText(teile) });
   if (String(daten.schadenregionen || "").includes("1")) {
     befehle.push({ typ: "skizze", regionen: String(daten.schadenregionen) });
   }

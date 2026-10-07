@@ -3,19 +3,43 @@ import { waehleModell, waehleOption } from "./eingabe-plan.js";
 
 export const UNSICHERE_TYPEN = new Set(["skizze"]);
 
+function kurzFehler(error) {
+  const text = String(error?.message || error || "").split("Call log")[0].split("\n")[0].trim();
+  if (/timeout|locator|waiting for/i.test(text)) return "Klick nicht möglich";
+  return text.slice(0, 80) || "nicht eingetragen";
+}
+
 export async function fuehreSchritt(seite, schritt) {
   if (!schritt) throw new FachlichError("Schritt fehlt");
   if (schritt.fachlich) throw new FachlichError(schritt.fachlich);
   if (schritt.nichtUmgesetzt) throw new NichtUmgesetztError(schritt.id);
+  if (!(schritt.befehle || []).length && schritt.wiederholen) throw new FachlichError(schritt.wiederholen);
+  const probleme = [];
   for (const befehl of schritt.befehle || []) {
-    if (UNSICHERE_TYPEN.has(befehl.typ)) throw new NichtUmgesetztError(schritt.id);
-    await seite.ausfuehren(befehl);
+    if (UNSICHERE_TYPEN.has(befehl.typ)) continue;
+    try {
+      await seite.ausfuehren(befehl);
+    } catch (error) {
+      if (error?.code === "BOT_STOPPED") throw error;
+      probleme.push(kurzFehler(error));
+    }
   }
-  if (!schritt.speichern) return { gespeichert: false };
-  const pruefung = await seite.pruefe();
-  if (!pruefung?.ok) throw new FachlichError("Rücklesen fehlgeschlagen");
-  await seite.speichern();
-  return { gespeichert: true };
+  let gespeichert = false;
+  if (schritt.speichern) {
+    try {
+      const pruefung = await seite.pruefe();
+      if (!pruefung?.ok) probleme.push("Rücklesen");
+      else {
+        await seite.speichern();
+        gespeichert = true;
+      }
+    } catch (error) {
+      if (error?.code === "BOT_STOPPED") throw error;
+      probleme.push(kurzFehler(error));
+    }
+  }
+  if (probleme.length && !gespeichert) throw new FachlichError([...new Set(probleme)].join("; "));
+  return { gespeichert, hinweis: probleme };
 }
 
 export function fakeSeite(optionen = {}) {
@@ -186,8 +210,7 @@ export function createPlaywrightSeite(page) {
         return;
       }
       if (befehl.typ === "fin") {
-        const suche = page.locator('[name="vehicle.vin"]').locator("xpath=following::button[2]");
-        await suche.click();
+        await finSuchen(page);
         const optionen = await page.locator("[id*='option'], [role='option'], tr").allTextContents();
         const modell = waehleModell(optionen, befehl);
         if (!modell) throw new FachlichError("Modellauswahl nicht eindeutig");
@@ -230,7 +253,11 @@ export function createPlaywrightSeite(page) {
     async speichern() {
       const knopf = await sichtbarerKnopf(page, /^Speichern$/i);
       if (knopf) {
-        await knopf.click();
+        try {
+          await knopf.click({ timeout: 8_000 });
+        } catch {
+          throw new FachlichError("Speichern nicht geklickt");
+        }
         await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
         werte.clear();
         return;
@@ -261,16 +288,16 @@ async function waehleFeld(page, feld, wert) {
     }
   }
 
+  const label = page.locator("label").filter({ hasText: new RegExp(escaped, "i") }).first();
   const formGroup = page.locator(".form-group, .form-row, .row").filter({
     has: page.locator("label", { hasText: new RegExp(escaped, "i") }),
   }).first();
 
   const klickZiele = [
+    label.locator("xpath=following::div[contains(@class,'-control')][1]"),
     formGroup.locator(".select2-selection").first(),
     formGroup.locator("div.control").first(),
     formGroup.locator("select").first(),
-    page.locator("label").filter({ hasText: new RegExp(escaped, "i") })
-      .locator("xpath=following::div[contains(@class,'control')][1]"),
   ];
 
   let geoeffnet = false;
@@ -298,8 +325,22 @@ async function waehleFeld(page, feld, wert) {
       if (optionen.length) break;
     }
   }
-  const treffer = waehleOption(optionen, wert);
-  if (!treffer) throw new FachlichError(feld);
+  let treffer = waehleOption(optionen, wert);
+  if (!treffer) {
+    await page.keyboard.type(String(wert), { delay: 20 }).catch(() => {});
+    await page.waitForTimeout(400);
+    for (const loc of optionenLocs) {
+      if (await loc.count()) {
+        optionen = await loc.allTextContents();
+        if (optionen.length) break;
+      }
+    }
+    treffer = waehleOption(optionen, wert);
+  }
+  if (!treffer) {
+    await page.keyboard.press("Escape").catch(() => {});
+    throw new FachlichError(feld);
+  }
   for (const loc of optionenLocs) {
     const option = loc.filter({ hasText: treffer }).first();
     if (await option.count()) {
@@ -443,6 +484,30 @@ async function erteilungSetzen(page, wert) {
   }
   await page.keyboard.press("Escape").catch(() => {});
   throw new FachlichError("Erteilung");
+}
+
+async function finSuchen(page) {
+  const vin = page.locator("[name='vehicle.vin']").first();
+  await vin.click();
+  await vin.press("Tab").catch(() => {});
+  const knoepfe = vin.locator("xpath=following::button");
+  const ende = Date.now() + 8_000;
+  while (Date.now() < ende) {
+    const anzahl = Math.min(await knoepfe.count(), 6);
+    for (let index = 0; index < anzahl; index += 1) {
+      const knopf = knoepfe.nth(index);
+      if (!(await knopf.isVisible().catch(() => false))) continue;
+      if (!(await knopf.isEnabled().catch(() => false))) continue;
+      const klasse = String(await knopf.getAttribute("class").catch(() => "") || "");
+      const titel = String(await knopf.getAttribute("title").catch(() => "") || "");
+      if (/icon-only|btn-blue/.test(klasse) || /such|fin|fahrzeug|abfrag/i.test(titel)) {
+        await knopf.click({ timeout: 8_000 });
+        return;
+      }
+    }
+    await page.waitForTimeout(300);
+  }
+  throw new FachlichError("FIN-Suche nicht klickbar");
 }
 
 async function auftragSchreiben(page, befehl) {

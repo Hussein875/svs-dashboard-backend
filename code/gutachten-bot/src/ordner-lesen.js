@@ -22,26 +22,26 @@ function pdfAuftrag(art) {
     return [
       "Lies nur dieses Besichtigungsblatt. Antworte als JSON. Unleserliches bleibt leer. Nichts schätzen.",
       "Fahrbereitschaft: Sind die Kästchen 'nicht fahrbereit' und 'nicht verkehrssicher' leer, ist der Wert verkehrssicher. Nur das gesetzte Kreuz ergibt nicht verkehrssicher oder nicht fahrbereit. Ein Kreuz in der Reifenzeile gehört nicht zur Fahrbereitschaft.",
-      "Reifen: Profiltiefe aus V und H, Hersteller, Dimension. Zwei Kreuze neben der Dimension: oben Stahl, unten Aluminium. Nur das gesetzte Kreuz.",
+      "Reifen: die Zahl bei V und bei H ist die Profiltiefe. Der Name darunter ist der Hersteller. Die Größe daneben ist die Dimension. Der obere Kreis ist Stahl, der untere Aluminium. Nur das gesetzte Kreuz.",
       "Beschädigt, zum Beispiel TVL, ist ein Vorschaden und steht in vorschadenAusserhalb. TVL heißt Tür vorne links beschädigt.",
-      "Der aktuelle Anstoß steht im Feld Schadenbereich und in der Skizze, nicht in der Zeile Beschädigt.",
-      "Ein N oder neu am Bauteil heißt erneuern. PDC heißt Parkhilfe-Sensor.",
+      "Der aktuelle Anstoß steht im Feld Schadenbereich, in der Skizze und in der Handschrift daneben, nicht in der Zeile Beschädigt. PDC heißt Parkhilfe-Sensor. Ein N oder neu am Bauteil heißt erneuern.",
       "polizei true nur bei Kreuz 'Polizeilich aufgenommen'. scheckheft true nur bei Kreuz Scheckheftgepflegt.",
-      "hergangGeparkt true bei Kreuz 'Geparkter Zustand'. kilometerstand aus der Zeile KM. HU vom Blatt nicht übernehmen.",
-      "Aktueller Anstoß zusätzlich als aktuell, zum Beispiel Stoßfänger vorne, Blende VL, PDC VL. Ein einzelner Sensor ist nicht das Kürzel für alle Sensoren.",
+      "hergangGeparkt true nur bei Kreuz 'Geparkter Zustand'. hergangAuffahrunfall true nur bei Kreuz 'Auffahrunfall'. Sonst beide false.",
+      "kilometerstand aus der Zeile KM. HU vom Blatt nicht übernehmen.",
+      "Aktueller Anstoß zusätzlich als aktuell, zum Beispiel Stoßfänger hinten, Träger hinten, Parkhilfe-Sensor hinten. Ein einzelner Sensor ist nicht das Kürzel für alle Sensoren.",
       "beschaedigungKuerzel nur aus dieser Liste, sonst beschaedigungOhneKuerzel mit artikel Der, Die oder Das:",
       schadenKuerzel().join(", "),
       "vorschadenImBereich nur, wenn der neue Anstoß dasselbe Bauteil wieder trifft. Dieselbe Seite reicht nicht.",
-      "Felder: fahrbereitschaft, airbagAusgeloest, scheckheft, polizei, hergangGeparkt, bereifung, beschaedigungKuerzel, beschaedigungOhneKuerzel, aktuell, vorschadenImBereich, vorschadenAusserhalb, kilometerstand.",
+      "Felder: fahrbereitschaft, airbagAusgeloest, scheckheft, polizei, hergangGeparkt, hergangAuffahrunfall, bereifung, beschaedigungKuerzel, beschaedigungOhneKuerzel, aktuell, vorschadenImBereich, vorschadenAusserhalb, kilometerstand.",
     ].join("\n");
   }
   return [
     "Lies nur diese Abtretung. Antworte als JSON. Unleserliches bleibt leer. Nichts schätzen.",
-    "Auftraggeber ist die Person unter 'Auftraggeber / Ansprechsteller', mit Straße, PLZ und Ort.",
+    "Auftraggeber ist die Person unter 'Auftraggeber / Anspruchsteller', mit Straße und Hausnummer, PLZ und Ort.",
     "kennzeichenAbtretung ist nur das amtliche Kennzeichen des Auftraggebers.",
     "kennzeichenUnfallgegner ist nur das Kennzeichen des Unfallgegners. Das Kennzeichen des Auftraggebers gehört dort nicht hinein.",
     "Den Namen der Versicherung nicht übernehmen. Sie wird über das Kennzeichen des Unfallgegners ermittelt.",
-    "schadentag als TT.MM.JJJJ. Ein Datum nach heute ist falsch gelesen. Ein Strich, der wie eine 7 aussieht und das Datum in die Zukunft schiebt, ist eine 1.",
+    "schadentag so, wie er dasteht, auch mit zweistelliger Jahreszahl. Ein Datum nach heute ist falsch gelesen. Ein Strich, der wie eine 7 aussieht und das Datum in die Zukunft schiebt, ist eine 1.",
     "schadennummer, versicherungsnummer, schadenort und schadenstrasse nur, wenn sie klar auf der Abtretung stehen.",
     "Felder: auftraggeber {anrede Herr oder Frau, name, strasse, plz, ort}, kennzeichenAbtretung, kennzeichenUnfallgegner, schadentag, schadennummer, versicherungsnummer, schadenort, schadenstrasse.",
   ].join("\n");
@@ -106,15 +106,51 @@ export async function sammleFotoRollen(fotos, lesen) {
     for (const rolle of FOTO_ROLLEN) {
       if (treffer[rolle]) continue;
       const name = String(antwort?.[rolle] || "").trim();
-      if (teil.some((foto) => foto.name === name)) treffer[rolle] = name;
+      const foto = teil.find((eintrag) => gleicherDateiName(eintrag.name, name));
+      if (foto) treffer[rolle] = foto.name;
     }
     for (const name of reifenNamen(antwort)) {
-      if (!teil.some((foto) => foto.name === name)) continue;
-      if (!reifen.includes(name)) reifen.push(name);
+      const foto = teil.find((eintrag) => gleicherDateiName(eintrag.name, name));
+      if (!foto || reifen.includes(foto.name)) continue;
+      reifen.push(foto.name);
     }
   });
+  if (reifen.length === 0) {
+    const belegt = new Set(Object.values(treffer).filter(Boolean));
+    const rest = fotos.filter((foto) => !belegt.has(foto.name));
+    for (let index = 0; index < rest.length && reifen.length < 4; index += 4) {
+      const teil = rest.slice(index, index + 4);
+      const antwort = await lesen([
+        "Welche dieser Fotos sind Nahaufnahmen von Reifen oder Felgen, auf denen Profiltiefe, Hersteller, Dimension oder die Felge zu sehen ist?",
+        "Antworte als JSON. Nur Dateinamen aus dieser Gruppe, sonst eine leere Liste.",
+        "{\"reifen\":[]}",
+      ].join("\n"), teil);
+      for (const name of reifenNamen(antwort)) {
+        const foto = teil.find((eintrag) => gleicherDateiName(eintrag.name, name));
+        if (foto && !reifen.includes(foto.name)) reifen.push(foto.name);
+      }
+    }
+  }
   const uebersicht = new Set(UEBERSICHTEN.map((rolle) => treffer[rolle]).filter(Boolean));
   return { ...treffer, reifen: reifen.filter((name) => !uebersicht.has(name)).slice(0, 4) };
+}
+
+async function scheinFotoFinden(fotos, zuordnung, lesen) {
+  const direkt = fotos.find((foto) => gleicherDateiName(foto.name, zuordnung?.schein));
+  if (direkt) return direkt;
+  const belegt = new Set(UEBERSICHTEN.map((rolle) => zuordnung?.[rolle]).filter(Boolean));
+  const rest = fotos.filter((foto) => !belegt.has(foto.name));
+  for (let index = 0; index < rest.length; index += 4) {
+    const teil = rest.slice(index, index + 4);
+    const antwort = await lesen([
+      "Welche Datei ist die Zulassungsbescheinigung Teil I auf Papier?",
+      "Eine FIN-Plakette am Fahrzeug ist kein Schein. Antworte als JSON. Sonst leer.",
+      "{\"schein\":\"\"}",
+    ].join("\n"), teil);
+    const foto = teil.find((eintrag) => gleicherDateiName(eintrag.name, antwort?.schein));
+    if (foto) return foto;
+  }
+  return null;
 }
 
 function reifenAuftrag() {
@@ -131,12 +167,25 @@ function reifenAuftrag() {
 function fahrzeugAuftrag() {
   return [
     "Lies nur diese Fotos. Unleserliches bleibt leer. Die FIN nicht korrigieren.",
-    "fin exakt vom Fahrzeugschein, 17 Zeichen. erstzulassung als TT.MM.JJJJ.",
+    "fin exakt vom Fahrzeugschein, 17 Zeichen. erstzulassung ist Feld B, TT.MM.JJJJ, nicht das Jahr aus der Typgenehmigung.",
     "getriebe nur Automatik, wenn der Wählhebel P R N D zeigt, nur Schaltgetriebe bei sichtbaren Gängen.",
     "kennzeichenSchein vom Schein, kennzeichenBild vom Schild.",
     "huPlakette nur von der Plakette am Schild, Format MM.YYYY. Den Stempel im Schein nicht übernehmen.",
-    "kilometerstand nur vom Tacho. halter nur der Name auf dem Schein, mit strasse, plz, ort.",
-    "Felder: fin, erstzulassung, getriebe, kennzeichenSchein, kennzeichenBild, huPlakette, kilometerstand, halter.",
+    "kilometerstand nur vom Tacho.",
+    "halter vom Schein: name ist Vorname aus C.1.2 und Nachname aus C.1.1. strasse ist C.1.3 inklusive Hausnummer, auch wenn str. am Straßennamen hängt. plz und ort stehen darunter.",
+    "{\"fin\":\"\",\"erstzulassung\":\"\",\"getriebe\":\"\",\"kennzeichenSchein\":\"\",\"kennzeichenBild\":\"\",\"huPlakette\":\"\",\"kilometerstand\":\"\",\"halter\":{\"name\":\"\",\"strasse\":\"\",\"plz\":\"\",\"ort\":\"\"}}",
+  ].join("\n");
+}
+
+function scheinHalterAuftrag() {
+  return [
+    "Lies nur diese Zulassungsbescheinigung Teil I. Antworte als JSON. Unleserliches bleibt leer. Nichts schätzen. Die FIN nicht korrigieren.",
+    "name ist Vorname aus C.1.2 und Nachname aus C.1.1.",
+    "strasse ist C.1.3 inklusive Hausnummer. str. direkt am Straßennamen behalten.",
+    "plz und ort stehen unter der Straße.",
+    "fin ist Feld E, 17 Zeichen. erstzulassung ist Feld B als TT.MM.JJJJ, nicht das Jahr aus der Typgenehmigung.",
+    "kennzeichenSchein ist das Kennzeichen auf dem Schein.",
+    "{\"halter\":{\"name\":\"\",\"strasse\":\"\",\"plz\":\"\",\"ort\":\"\"},\"fin\":\"\",\"erstzulassung\":\"\",\"kennzeichenSchein\":\"\"}",
   ].join("\n");
 }
 
@@ -146,16 +195,48 @@ async function vorschau(foto, verzeichnis) {
   return { name: foto.name, mimeType: "image/jpeg", bytes: await readFile(ziel) };
 }
 
-function norm(wert) {
-  return String(wert ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+function vergleich(wert) {
+  return String(wert ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/straße|strasse/g, "str")
+    .replace(/\bstr\./g, "str")
+    .replace(/[.\-/,]+/g, " ")
+    .replace(/(\d)\s+(?=\d)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function datumVergleich(wert) {
+  const roh = String(wert ?? "").trim();
+  const kurz = roh.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
+  if (kurz) {
+    const jahr = Number(kurz[3]) <= 50 ? 2000 + Number(kurz[3]) : 1900 + Number(kurz[3]);
+    return `${kurz[1].padStart(2, "0")}.${kurz[2].padStart(2, "0")}.${jahr}`;
+  }
+  const lang = roh.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!lang) return "";
+  return `${lang[1].padStart(2, "0")}.${lang[2].padStart(2, "0")}.${lang[3]}`;
 }
 
 function nimm(links, rechts) {
-  if (norm(links) && norm(links) === norm(rechts)) return links;
+  const datum = datumVergleich(links);
+  if (datum && datum === datumVergleich(rechts)) return datum;
+  if (vergleich(links) && vergleich(links) === vergleich(rechts)) {
+    const a = String(links).trim();
+    const b = String(rechts).trim();
+    const gewaehlt = a.length >= b.length ? a : b;
+    return gewaehlt.replace(/(\d)\s+(?=\d)/g, "$1");
+  }
   return "";
 }
 
-function gleicheFelder(links, rechts) {
+function gleicherDateiName(links, rechts) {
+  const kern = (name) => String(name || "").trim().toLowerCase().replace(/^.*\//, "").replace(/\.[a-z0-9]+$/i, "");
+  return kern(links) !== "" && kern(links) === kern(rechts);
+}
+
+export function gleicheFelder(links, rechts) {
   const a = links || {};
   const b = rechts || {};
   return {
@@ -174,6 +255,27 @@ function gleicheFelder(links, rechts) {
     schadenort: nimm(a.schadenort, b.schadenort),
     schadenstrasse: nimm(a.schadenstrasse, b.schadenstrasse),
   };
+}
+
+function abtretungLuecke(ae) {
+  const person = ae?.auftraggeber || {};
+  return ["name", "strasse", "plz", "ort"].some((key) => !person[key])
+    || !ae?.schadentag
+    || !ae?.schadenort;
+}
+
+function lueckeFuellen(bisher, links, rechts, neu) {
+  const ausLinks = gleicheFelder(links, neu);
+  const ausRechts = gleicheFelder(rechts, neu);
+  const person = { ...(bisher.auftraggeber || {}) };
+  for (const key of ["anrede", "name", "strasse", "plz", "ort"]) {
+    if (!person[key]) person[key] = ausLinks.auftraggeber?.[key] || ausRechts.auftraggeber?.[key] || "";
+  }
+  const felder = { ...bisher, auftraggeber: person };
+  for (const key of ["kennzeichenAbtretung", "kennzeichenUnfallgegner", "schadentag", "schadennummer", "versicherungsnummer", "schadenort", "schadenstrasse"]) {
+    if (!felder[key]) felder[key] = ausLinks[key] || ausRechts[key] || "";
+  }
+  return felder;
 }
 
 export async function leseFallOrdner({ folderId, lesen = frageGemini } = {}) {
@@ -227,7 +329,11 @@ export async function leseFallOrdner({ folderId, lesen = frageGemini } = {}) {
     fotos.length ? sammleFotoRollen(fotos, lesen) : {},
   ]);
   const anwalt = nimm(vmEins?.anwalt, vmZwei?.anwalt);
-  const aeAntwort = gleicheFelder(aeEins, aeZwei);
+  let aeAntwort = gleicheFelder(aeEins, aeZwei);
+  if (aePdf.length && abtretungLuecke(aeAntwort)) {
+    const aeDrei = await lesen(pdfAuftrag("ae"), aePdf);
+    aeAntwort = lueckeFuellen(aeAntwort, aeEins, aeZwei, aeDrei);
+  }
   const uebersichten = {
     vorneLinks: zuordnung.vorneLinks || "",
     vorneRechts: zuordnung.vorneRechts || "",
@@ -255,6 +361,14 @@ export async function leseFallOrdner({ folderId, lesen = frageGemini } = {}) {
     );
     if (hebelAntwort?.getriebe === "Automatik" || hebelAntwort?.getriebe === "Schaltgetriebe") {
       fahrzeug.getriebe = hebelAntwort.getriebe;
+    }
+  }
+  const scheinBild = await scheinFotoFinden(fotos, zuordnung, lesen);
+  if (scheinBild) {
+    const scheinGelesen = await lesen(scheinHalterAuftrag(), [scheinBild]);
+    if (scheinGelesen?.halter && typeof scheinGelesen.halter === "object") fahrzeug.halter = scheinGelesen.halter;
+    for (const feld of ["fin", "erstzulassung", "kennzeichenSchein"]) {
+      if (String(scheinGelesen?.[feld] || "").trim()) fahrzeug[feld] = scheinGelesen[feld];
     }
   }
   const roh = rohAusModell(

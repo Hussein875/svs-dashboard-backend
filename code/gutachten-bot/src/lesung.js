@@ -29,6 +29,11 @@ function huText(wert) {
   return `${monatJahr[1].padStart(2, "0")}.${monatJahr[2]}`;
 }
 
+function personVollstaendig(person) {
+  if (!person || person.lesbar === false) return false;
+  return ["name", "strasse", "plz", "ort"].every((feld) => String(person[feld] || "").trim());
+}
+
 function namenGleich(links, rechts) {
   const normiere = (wert) => String(wert || "").trim().toLowerCase().replace(/\s+/g, " ");
   return normiere(links) === normiere(rechts) && normiere(links) !== "";
@@ -53,10 +58,21 @@ function kennzeichenAus(ae, schein, bilder) {
 export function werteLesung({ bd, ae, schein, ordnerName, bilder, kuerzel: kuerzelVorgabe } = {}) {
   const ausBd = datensatzAusBd(bd || {});
   const abtretung = ae || {};
-  const auftraggeber = abtretung.auftraggeber && typeof abtretung.auftraggeber === "object"
+  let auftraggeber = abtretung.auftraggeber && typeof abtretung.auftraggeber === "object"
     ? abtretung.auftraggeber
     : { lesbar: false };
   const halter = schein?.halter && typeof schein.halter === "object" ? schein.halter : null;
+  const vomSchein = !personVollstaendig(auftraggeber) && personVollstaendig(halter);
+  if (vomSchein) {
+    auftraggeber = {
+      anrede: halter.anrede === "Frau" ? "Frau" : "Herr",
+      name: String(halter.name).trim(),
+      strasse: String(halter.strasse).trim(),
+      plz: String(halter.plz).trim(),
+      ort: String(halter.ort).trim(),
+      lesbar: true,
+    };
+  }
   const gleicherHalter = halter && namenGleich(halter.name, auftraggeber.name);
   const vollmacht = abtretung.vollmacht === true;
   const kuerzel = String(kuerzelVorgabe || ausBd.kuerzel || bd?.kuerzel || "").trim().toUpperCase()

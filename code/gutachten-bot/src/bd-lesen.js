@@ -8,8 +8,8 @@ export function datensatzAusBd(lesung) {
   const quelle = lesung || {};
   const reifen = quelle.bereifung || {};
   const profil = String(reifen.profiltiefe || "").trim();
-  const hersteller = String(reifen.hersteller || "").trim();
-  const dimension = String(reifen.dimension || "").trim();
+  const hersteller = reifen.herstellerLesbar === false ? "" : String(reifen.hersteller || "").trim();
+  const dimension = reifen.dimensionLesbar === false ? "" : String(reifen.dimension || "").trim();
   const felgen = reifen.felgen === "Stahl" || reifen.felgen === "Aluminium" ? reifen.felgen : "";
   const reifenVollstaendig = Boolean(
     profil && hersteller && dimension && felgen
@@ -18,7 +18,11 @@ export function datensatzAusBd(lesung) {
   );
 
   const hergang = Array.isArray(quelle.hergang) ? quelle.hergang : [];
-  const nurGeparkt = hergang.length === 1 && hergang[0] === "geparkt";
+  const schilderungText = hergang.length === 1 && hergang[0] === "geparkt"
+    ? "Parkplatzunfall"
+    : hergang.length === 1 && hergang[0] === "auffahrunfall"
+      ? "Auffahrunfall"
+      : "";
 
   return {
     kuerzel: String(quelle.kuerzel || "").trim().toUpperCase(),
@@ -28,12 +32,16 @@ export function datensatzAusBd(lesung) {
     airbagAusgeloest: quelle.airbagAusgeloest === true,
     scheckheft: quelle.scheckheft === true,
     polizei: { angegeben: quelle.polizei === true },
-    schilderung: nurGeparkt
-      ? { wert: "Parkplatzunfall", lesbar: true }
+    schilderung: schilderungText
+      ? { wert: schilderungText, lesbar: true }
       : { wert: "", lesbar: false },
-    bereifung: reifenVollstaendig
-      ? { profiltiefe: profil, hersteller, dimension, felgen, lesbar: true }
-      : { lesbar: false },
+    bereifung: {
+      profiltiefe: profil,
+      hersteller,
+      dimension,
+      felgen,
+      lesbar: reifenVollstaendig,
+    },
     vorschaeden: {
       angegeben: quelle.vorschaedenAngegeben === true,
       lesbar: quelle.vorschaedenLesbar !== false,

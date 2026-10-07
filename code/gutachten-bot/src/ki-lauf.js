@@ -7,6 +7,7 @@ import { leseFallOrdner } from "./ordner-lesen.js";
 import { pruefePflichtfelder } from "./pflichtfelder.js";
 import { createPlaywrightSeite } from "./ultraexpert-seite.js";
 import { starteAkte } from "./start-akte.js";
+import { abschlussMeldung } from "./abschluss-meldung.js";
 import { closeState, openState } from "./state.js";
 
 export const LESUNG_VERSUCHE = 3;
@@ -61,7 +62,15 @@ export function lesungOffen(datensatz) {
   if (!String(datensatz?.erstzulassung?.wert || "").trim()) namen.push("Erstzulassung (fehlt)");
   if (!String(datensatz?.getriebe?.wert || "").trim()) namen.push("Getriebe (fehlt)");
   if (!String(datensatz?.fahrbereitschaft || "").trim()) namen.push("Fahrbereitschaft (fehlt)");
-  if (!datensatz?.bereifung || datensatz.bereifung.lesbar === false) namen.push("Bereifung (fehlt)");
+  const reifen = datensatz?.bereifung || {};
+  if (reifen.lesbar !== true) {
+    const offen = [];
+    if (!String(reifen.profiltiefe || "").trim()) offen.push("Profiltiefe");
+    if (!String(reifen.hersteller || "").trim()) offen.push("Hersteller");
+    if (!String(reifen.dimension || "").trim()) offen.push("Dimension");
+    if (reifen.felgen !== "Stahl" && reifen.felgen !== "Aluminium") offen.push("Felgen");
+    namen.push(offen.length === 4 ? "Bereifung (fehlt)" : `Bereifung (${offen.join(", ")} fehlt)`);
+  }
   if (!String(datensatz?.unfallgegnerKennzeichen?.wert || "").trim()) namen.push("Unfallgegner-Kennzeichen (fehlt)");
   if (datensatz?.vollmacht === true && !String(datensatz?.anwalt?.name || "").trim()) namen.push("Anwalt (unleserlich)");
   if (!String(datensatz?.schilderung || "").trim()) namen.push("Schilderung (fehlt)");
@@ -89,8 +98,8 @@ function lesbareLogzeile(zeile) {
     const staende = {
       laeuft: "läuft",
       erledigt: "fertig",
-      offen: "übersprungen",
-      fehler: "Fehler",
+      offen: "noch offen",
+      fehler: "noch offen",
       wartet: "wartet",
     };
     const schritt = namen[eintrag?.schritt] || String(eintrag?.schritt || "").trim();
@@ -231,25 +240,10 @@ export async function runKiGutachten({
 
     const stand = ergebnis.stand || "unbekannt";
     const manuell = quelle.luecken || [];
-    const uebersprungen = Array.isArray(ergebnis.offen) ? ergebnis.offen : [];
+    const uebersprungen = Array.isArray(ergebnis.offen) ? [...ergebnis.offen] : [];
+    if (ergebnis.detail) uebersprungen.push(String(ergebnis.detail));
     const gespeichert = Array.isArray(ergebnis.gespeichert) ? ergebnis.gespeichert : [];
-    let message;
-    if (gespeichert.length || uebersprungen.length || manuell.length || stand === "pausiert" || stand === "teilweise") {
-      message = gespeichert.length
-        ? `Akte ${nummer}: gespeichert: ${gespeichert.join(", ")}.`
-        : `Akte ${nummer}: nichts gespeichert.`;
-      if (manuell.length) message += ` Manuell nachtragen: ${manuell.join(", ")}.`;
-      if (uebersprungen.length) message += ` Nicht geschafft: ${uebersprungen.join(", ")}.`;
-    } else if (stand === "wartet_auf_eingabe") {
-      const wo = ergebnis.schritt ? ` bei ${ergebnis.schritt}` : "";
-      message = `Akte ${nummer}: Eingabe wartet${wo}: ${ergebnis.detail || "Pflichtfeld/UX"}`;
-    } else if (stand === "fehler") {
-      const wo = ergebnis.schritt ? `Schritt ${ergebnis.schritt}` : "Eingabe";
-      message = `Akte ${nummer}: ${wo} fehlgeschlagen – ${ergebnis.detail || "technischer Fehler"}`;
-      console.error(`❌ KI Gutachten (${nummer}): ${message}`);
-    } else {
-      message = `Akte ${nummer}: Gutachten-Bot (${stand}).`;
-    }
+    const message = abschlussMeldung(nummer, { gespeichert, manuell, uebersprungen });
 
     return {
       akte: nummer,

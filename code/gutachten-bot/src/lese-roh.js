@@ -23,7 +23,9 @@ function feld(wert, muster) {
 }
 
 function strasseKlar(wert) {
-  return /\d/.test(wert) && /\b(str\.?|straße|strasse|weg|platz|allee|damm|ring|gasse|chaussee|steig)\b/i.test(wert);
+  if (!/\d/.test(wert)) return false;
+  if (/\b(str\.?|straße|strasse|weg|platz|allee|damm|ring|gasse|chaussee|steig)\b/i.test(wert)) return true;
+  return /str\.?(?=\s*\d)/i.test(wert);
 }
 
 function vorschadenZeile(wert) {
@@ -43,6 +45,9 @@ function teilSatz(name) {
   const roh = text(name);
   const bekannt = [
     [/stoßfänger vorne/i, "Der", "Stoßfänger vorne"],
+    [/stoßfänger hinten/i, "Der", "Stoßfänger hinten"],
+    [/träger hinten/i, "Der", "Träger hinten"],
+    [/parkhilfe.*hinten/i, "Der", "Parkhilfe-Sensor hinten"],
     [/blende\s+vl|blende vorne links/i, "Die", "Blende vorne links"],
     [/pdc\s+vl|parkhilfe.*vorne links/i, "Der", "Parkhilfe-Sensor vorne links"],
   ];
@@ -53,7 +58,9 @@ function teilSatz(name) {
 }
 
 function person(quelle) {
-  const name = text(quelle?.name);
+  const vorname = text(quelle?.vorname);
+  const nachname = text(quelle?.nachname);
+  const name = [vorname, nachname].filter(Boolean).join(" ") || text(quelle?.name);
   const strasse = text(quelle?.strasse);
   const plz = text(quelle?.plz);
   const ort = text(quelle?.ort);
@@ -131,7 +138,12 @@ function fahrbereitschaftAus(wert, bdGelesen) {
 }
 
 function tagesdatum(wert) {
-  const treffer = text(wert).match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  const roh = text(wert);
+  const kurz = roh.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
+  const basis = kurz
+    ? `${kurz[1].padStart(2, "0")}.${kurz[2].padStart(2, "0")}.${Number(kurz[3]) <= 50 ? 2000 + Number(kurz[3]) : 1900 + Number(kurz[3])}`
+    : roh;
+  const treffer = basis.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!treffer) return "";
   const tag = Number(treffer[1]);
   const monat = Number(treffer[2]);
@@ -215,10 +227,20 @@ export function rohAusModell(modell, optionen = {}) {
     airbagAusgeloest: quelle.airbagAusgeloest === true,
     scheckheft: quelle.scheckheft === true,
     polizei: quelle.polizei === true,
-    hergang: quelle.hergangGeparkt === true ? ["geparkt"] : [],
-    bereifung: reifenKlar
-      ? { profiltiefe: profil, hersteller, herstellerLesbar: true, dimension, dimensionLesbar: true, felgen }
-      : { lesbar: false },
+    hergang: quelle.hergangGeparkt === true
+      ? ["geparkt"]
+      : quelle.hergangAuffahrunfall === true
+        ? ["auffahrunfall"]
+        : [],
+    bereifung: {
+      profiltiefe: profil,
+      hersteller,
+      herstellerLesbar: Boolean(hersteller),
+      dimension,
+      dimensionLesbar: Boolean(dimension),
+      felgen,
+      lesbar: reifenKlar,
+    },
     beschaedigungen: schadenSaetze(schaden),
     vorschaedenAngegeben: true,
     vorschaedenLesbar: true,
