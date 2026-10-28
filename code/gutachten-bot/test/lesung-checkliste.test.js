@@ -4,6 +4,7 @@ import {
   applyLesungOverrides,
   lesungCheckliste,
   mergeChecklistOverrides,
+  parseBereifungOverrideText,
 } from "../src/lesung-checkliste.js";
 
 test("Checkliste zeigt gelesenes Kennzeichen und fehlende Felder", () => {
@@ -39,4 +40,20 @@ test("Overrides überschreiben Anzeige und Datensatz", () => {
   assert.equal(neu.kennzeichen.wert, "ME-HS 1718");
   const liste = mergeChecklistOverrides(lesungCheckliste(basis), { kennzeichen: "ME-HS 1718" });
   assert.equal(liste.find((r) => r.id === "kennzeichen").wert, "ME-HS 1718");
+});
+
+test("Bereifung-Override aus Checkliste-Text (Punkte)", () => {
+  const parsed = parseBereifungOverrideText("8 mm · FALKEN · 215/60 R17");
+  assert.equal(parsed.profiltiefe, "8");
+  assert.equal(parsed.hersteller, "FALKEN");
+  assert.equal(parsed.dimension, "215/60 R17");
+  const neu = applyLesungOverrides({}, { bereifung: "8 mm · FALKEN · 215/60 R17" });
+  assert.equal(neu.bereifung.hersteller, "FALKEN");
+  assert.equal(neu.bereifung.lesbar, true);
+});
+
+test("Schadentag manuell setzen", () => {
+  const neu = applyLesungOverrides({}, { schadentag: "27.12.2024" });
+  assert.equal(neu.schadentag.wert, "27.12.2024");
+  assert.equal(neu.schadentag.lesbar, true);
 });

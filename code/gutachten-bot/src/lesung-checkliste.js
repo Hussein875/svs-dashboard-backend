@@ -208,6 +208,38 @@ export function uxSchrittCheckliste(schritte, laufendId) {
   });
 }
 
+/** Checkliste zeigt „8 mm · FALKEN · 215/60 R17“ — im Editor auch | oder unverändert lassen. */
+export function parseBereifungOverrideText(v) {
+  const raw = String(v ?? "").trim();
+  if (!raw) return {};
+  if (raw.includes("|")) {
+    const teile = raw.split("|").map((s) => s.trim());
+    return {
+      profiltiefe: (teile[0] || "").replace(/\s*mm\s*$/i, "").trim() || teile[0],
+      hersteller: teile[1] || "",
+      dimension: teile[2] || "",
+      felgen: teile[3] || "",
+    };
+  }
+  const teile = raw.split("·").map((s) => s.trim()).filter(Boolean);
+  if (teile.length <= 1) {
+    return { profiltiefe: raw.replace(/\s*mm\s*$/i, "").trim() };
+  }
+  let profiltiefe = "";
+  let hersteller = "";
+  let dimension = "";
+  let felgen = "";
+  for (const teil of teile) {
+    if (/\d\s*\/\s*\d/.test(teil)) dimension = teil;
+    else if (/^\d+\s*mm?$/i.test(teil) || (/^\d+$/.test(teil) && !profiltiefe)) {
+      profiltiefe = teil.replace(/\s*mm\s*$/i, "").trim();
+    } else if (/stahl|alu/i.test(teil)) felgen = teil;
+    else if (!hersteller) hersteller = teil;
+    else if (!felgen) felgen = teil;
+  }
+  return { profiltiefe, hersteller, dimension, felgen };
+}
+
 const OVERRIDE_SETTER = {
   kennzeichen: (d, v) => {
     d.kennzeichen = { ...(d.kennzeichen || {}), wert: v, lesbar: true };
@@ -249,13 +281,10 @@ const OVERRIDE_SETTER = {
     d.unfallgegnerKennzeichen = { ...(d.unfallgegnerKennzeichen || {}), wert: v, lesbar: true };
   },
   bereifung: (d, v) => {
-    const teile = String(v).split("|").map((s) => s.trim());
+    const parsed = parseBereifungOverrideText(v);
     d.bereifung = {
       ...(d.bereifung || {}),
-      profiltiefe: teile[0] || d.bereifung?.profiltiefe,
-      hersteller: teile[1] || d.bereifung?.hersteller,
-      dimension: teile[2] || d.bereifung?.dimension,
-      felgen: teile[3] || d.bereifung?.felgen,
+      ...parsed,
       lesbar: true,
     };
   },
