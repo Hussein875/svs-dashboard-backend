@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createUltraExpertAdapter } from "./adapter-ultraexpert.js";
 import { teileAnalyseQuellen, werteLesung } from "./lesung.js";
-import { leseExtraktionen } from "./drive-ordner.js";
+import { leseExtraktionen, normalizeDriveFolderId } from "./drive-ordner.js";
 import { leseFallOrdner } from "./ordner-lesen.js";
 import { pruefePflichtfelder } from "./pflichtfelder.js";
 import { createPlaywrightSeite } from "./ultraexpert-seite.js";
@@ -130,7 +130,7 @@ export function mapKiUmgebung() {
 export async function bereiteKiDatensatz({ akte, driveFolderId, onStep, lesen }) {
   mapKiUmgebung();
   const nummer = String(akte || "").trim();
-  const folderId = String(driveFolderId || "").trim();
+  const folderId = normalizeDriveFolderId(driveFolderId);
   if (!nummer) throw new Error("Aktenzeichen fehlt.");
   if (!folderId) throw new Error("Drive-Ordner-ID fehlt.");
 
@@ -191,7 +191,7 @@ export async function runKiGutachten({
   mapKiUmgebung();
 
   const nummer = String(akte || "").trim();
-  const folderId = String(driveFolderId || "").trim();
+  const folderId = normalizeDriveFolderId(driveFolderId);
   if (!nummer) throw new Error("Aktenzeichen fehlt.");
   if (!folderId) throw new Error("Drive-Ordner-ID fehlt.");
   if (!page) throw new Error("Playwright-Seite fehlt.");

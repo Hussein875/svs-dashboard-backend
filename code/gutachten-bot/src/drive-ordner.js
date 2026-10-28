@@ -5,6 +5,36 @@ import { leseOrdnerNamen, loeseVorgangsNummer } from "./ordner.js";
 
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 
+export function normalizeDriveFolderId(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text);
+      const ausPfad = url.pathname.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      if (ausPfad) return ausPfad[1];
+      const ausQuery = url.searchParams.get("id");
+      if (ausQuery) return ausQuery.trim();
+    } catch {
+      /* URL parse fehlgeschlagen */
+    }
+    const lose = text.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (lose) return lose[1];
+  }
+  const ohneQuery = text.split("?")[0].trim();
+  if (ohneQuery.includes("/")) {
+    const lose = ohneQuery.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (lose) return lose[1];
+  }
+  return ohneQuery;
+}
+
+function resolveFolderId(folderId) {
+  const id = normalizeDriveFolderId(folderId);
+  if (!id) throw new Error("Drive-Ordner-ID fehlt");
+  return id;
+}
+
 function slugAusNummer(nummer) {
   return String(nummer || "").trim().replace(/\//g, "-");
 }
@@ -27,8 +57,7 @@ async function ladeText(dateiId, token) {
 
 export async function listeOrdnerDateien(folderId, token = driveToken) {
   const zugang = await token();
-  const id = String(folderId || "").trim();
-  if (!id) throw new Error("Drive-Ordner-ID fehlt");
+  const id = resolveFolderId(folderId);
 
   const dateien = [];
   let pageToken = "";
@@ -66,8 +95,7 @@ export async function listeOrdnerBaum(folderId, token = driveToken, ordner = "")
 
 export async function leseOrdnerMeta(folderId, token = driveToken) {
   const zugang = await token();
-  const id = String(folderId || "").trim();
-  if (!id) throw new Error("Drive-Ordner-ID fehlt");
+  const id = resolveFolderId(folderId);
   const payload = await apiGet(
     `${DRIVE}/${encodeURIComponent(id)}?fields=id,name&supportsAllDrives=true`,
     zugang,
