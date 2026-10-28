@@ -78,18 +78,14 @@ Bei **Fehler** oder **Stopp**: eine Zeile mit Fehlertext; kein vollständiger Be
 - Lesung: „Dokumente lesen“, „Versuch 3 von 3“ — **ohne** Liste gelesener Felder bis zum Ende.
 - Abschluss: **Gespeichert** + **Offen** (Zeile **Gelesen** ist im Code vorbereitet, Deploy folgt).
 
-### Soll (nächster Deploy nach laufendem Job)
+### Soll (Lesung-Checkliste im Bots-Modal)
 
-1. **Zweite Zeile unter der Laufzeit** (`bots-activity`): volle Live-Meldung, z. B.  
-   `Vor Ort: läuft — Besichtigungsbedingungen und Probelauf`
-2. **Nach Phase 1**: `Lesung fertig: N gelesen, M offen — …`
-3. **Abschluss**: Zeile **Gelesen:** wie oben.
-4. **Link** „UltraExpert öffnen“ bei fertigem Lauf.
+1. **Live-Checkliste** unter dem KI-Eintrag: Feld · Wert · ✓/○/? (während Lesung Zeilen füllen sich).
+2. **Pause nach Lesung** — Status „Lesung prüfen“, Felder **editierbar**, Button **„UX starten“** (Korrekturen gehen in die Eingabe).
+3. **UX-Spalte** — zweite Liste: Auftrag, Beteiligte, … mit Fortschritt während Phase 2.
+4. API: `PATCH /api/bots/:id/lesung`, `POST /api/bots/:id/ux-start`. Abschalten der Pause: `KI_PAUSE_AFTER_LESUNG=0` auf dem Server.
 
-Technik (bereits im Repo, noch nicht im laufenden Container):
-
-- `schrittLiveText()` in `src/eingabe-plan.js` — gleiche Logik wie der Eingabe-Plan, in Klartext.
-- `detail` im Schritt-Log → `ki-lauf.js` → assign-service → `job.message` → Dashboard alle ~3 s.
+Technik: `src/lesung-checkliste.js`, `kiFortschrittPayload` → assign-service → Dashboard `renderLesungChecklistHtml`.
 
 ---
 

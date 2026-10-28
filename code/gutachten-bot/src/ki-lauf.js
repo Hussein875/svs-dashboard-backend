@@ -10,9 +10,31 @@ import { starteAkte } from "./start-akte.js";
 import { analysiere, stelleEingabeBereit } from "./pipeline.js";
 import { eingeben } from "./phase2.js";
 import { abschlussMeldung } from "./abschluss-meldung.js";
-import { closeState, openState } from "./state.js";
+import { closeState, getVorgang, openState } from "./state.js";
+import {
+  applyLesungOverrides,
+  kiFortschrittPayload,
+} from "./lesung-checkliste.js";
+
+export { applyLesungOverrides, kiFortschrittPayload } from "./lesung-checkliste.js";
 
 export const LESUNG_VERSUCHE = 3;
+
+function emitKiStep(onStep, input, datensatz = {}, extras = {}) {
+  if (!onStep) return;
+  if (typeof input === "string") {
+    onStep(kiFortschrittPayload({
+      message: input,
+      phase: extras.phase || "lesen",
+      datensatz,
+      overrides: extras.overrides,
+      uxSchritte: extras.uxSchritte,
+      laufendSchritt: extras.laufendSchritt,
+    }));
+    return;
+  }
+  onStep(input);
+}
 
 function istGefuellt(wert) {
   if (wert === true) return true;
@@ -227,10 +249,11 @@ export async function bereiteKiDatensatz({ akte, driveFolderId, onStep, lesen })
   let meta = null;
   let datensatz = null;
   let luecken = [];
+  emitKiStep(onStep, "Dokumente und Fotos lesen", {});
   for (let versuch = 1; versuch <= LESUNG_VERSUCHE; versuch += 1) {
-    onStep?.(versuch === 1
-      ? "Dokumente und Fotos lesen"
-      : `Lesung erneut, Versuch ${versuch} von ${LESUNG_VERSUCHE}`);
+    if (versuch > 1) {
+      emitKiStep(onStep, `Lesung erneut, Versuch ${versuch} von ${LESUNG_VERSUCHE}`, datensatz || {});
+    }
     const fall = await leseFallOrdner({ folderId, lesen });
     if (!fall.dokumenteGefunden) {
       if (!datensatz) {
@@ -260,8 +283,9 @@ export async function bereiteKiDatensatz({ akte, driveFolderId, onStep, lesen })
     });
     datensatz = fuehreDatensatzZusammen(datensatz, gelesen);
     luecken = lesungOffen(datensatz);
+    emitKiStep(onStep, versuch === 1 ? "Dokumente und Fotos lesen" : `Lesung, Versuch ${versuch}`, datensatz);
     if (luecken.length === 0) break;
-    if (versuch < LESUNG_VERSUCHE) onStep?.(`Noch offen: ${luecken.join(", ")}`);
+    if (versuch < LESUNG_VERSUCHE) emitKiStep(onStep, `Noch offen: ${luecken.slice(0, 4).join(", ")}`, datensatz);
   }
 
   luecken = lesungOffen(datensatz || {});
@@ -286,6 +310,7 @@ export async function runKiGutachten({
   onStep,
   control,
   vorbereitet,
+  lesungOverrides,
 }) {
   mapKiUmgebung();
 
@@ -301,26 +326,74 @@ export async function runKiGutachten({
     throw err;
   }
 
-  const quelle = vorbereitet || await bereiteKiDatensatz({
+  let quelle = vorbereitet || await bereiteKiDatensatz({
     akte: nummer,
     driveFolderId: folderId,
     onStep,
   });
-  onStep?.(lesungStandKurz(quelle.datensatz, quelle.luecken));
+
+  const overrides = lesungOverrides && typeof lesungOverrides === "object" ? lesungOverrides : {};
+  if (Object.keys(overrides).length > 0) {
+    const datensatz = applyLesungOverrides(quelle.datensatz, overrides);
+    const teile = teileAnalyseQuellen(datensatz);
+    quelle = {
+      ...quelle,
+      datensatz,
+      dokumente: teile.dokumente,
+      fotos: teile.fotos,
+      luecken: lesungOffen(datensatz),
+    };
+  }
+
+  emitKiStep(onStep, lesungStandKurz(quelle.datensatz, quelle.luecken), quelle.datensatz, {
+    phase: "lesung_fertig",
+    overrides,
+  });
+
   const meta = quelle.meta;
   const kuerzel = quelle.kuerzel;
-  const dokumente = quelle.dokumente;
-  const fotos = quelle.fotos;
+  let dokumente = quelle.dokumente;
+  let fotos = quelle.fotos;
+  const datensatzFuerEingabe = quelle.datensatz;
 
   const db = openState(zustandPfad(nummer));
 
   const log = (zeile) => {
-    if (typeof zeile === "string") onStep?.(lesbareLogzeile(zeile));
-    else if (zeile?.schritt) onStep?.(`${zeile.schritt}: ${zeile.status}`);
+    if (typeof zeile === "string") {
+      emitKiStep(onStep, lesbareLogzeile(zeile), datensatzFuerEingabe, { phase: "ux", overrides });
+      return;
+    }
+    if (!zeile?.schritt) return;
+    const vorgang = getVorgang(db, nummer);
+    const detail = String(zeile.detail || "").trim();
+    const status = String(zeile.status || "").trim();
+    const namen = {
+      auftrag: "Auftrag",
+      beteiligte: "Beteiligte",
+      besichtigung: "Besichtigung",
+      fahrzeug: "Fahrzeug",
+      bereifung: "Bereifung",
+      "vor-ort": "Vor Ort",
+      vorschaeden: "Vorschäden",
+      schadenfeststellung: "Schadenfeststellung",
+      "dokumente-import": "Dokumente",
+      lichtbilder: "Lichtbilder",
+      eingabe: "Eingabe",
+    };
+    const schrittName = namen[zeile.schritt] || zeile.schritt;
+    const message = detail
+      ? `${schrittName}: ${status} — ${detail}`
+      : `${schrittName}: ${status}`;
+    emitKiStep(onStep, message, datensatzFuerEingabe, {
+      phase: "ux",
+      overrides,
+      uxSchritte: vorgang?.schritte,
+      laufendSchritt: status === "laeuft" ? zeile.schritt : undefined,
+    });
   };
 
   try {
-    onStep?.("Gutachten-Bot: Pflichtfelder und Eingabe");
+    emitKiStep(onStep, "UltraExpert: Eingabe startet", datensatzFuerEingabe, { phase: "ux", overrides });
     const adapter = createUltraExpertAdapter({
       seite: createPlaywrightSeite(page),
     });
