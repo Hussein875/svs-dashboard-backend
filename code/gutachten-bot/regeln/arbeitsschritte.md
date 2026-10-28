@@ -13,7 +13,7 @@ Vor der Eingabe in UltraExpert muss die Akte gegen diese Liste geprüft sein.
 - Vorschäden-Angabe, auch wenn sie „Keine“ lautet
 - Auftraggeberdaten: Anrede, Name, Straße, PLZ, Ort
 
-Fehlt ein Feld oder ist es unleserlich, startet die Eingabe nicht. Der Stand wird `wartet_auf_eingabe`.
+Fehlt ein Feld oder ist es unleserlich, startet die **normale** Eingabe (ohne KI) nicht; der Stand wird `wartet_auf_eingabe`. Der **KI-Lauf** (`trotzLuecken`) tippt trotzdem Lesbares und listet Lücken im Abschlussbericht.
 
 ## Zustand
 
@@ -23,7 +23,7 @@ Je Vorgangsnummer, in dieser Reihenfolge: `eingelesen`, `geprueft`, `eingetippt`
 
 Phase 2 folgt der **linken Menüleiste** in UltraExpert: **Auftrag → Beteiligte → Besichtigungen → Fahrzeug** und danach Bereifung usw.
 
-Der Reiter **Auftrag** wird ausgefüllt: Kennzeichen, Kennzeichen des Unfallgegners mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße und Sachverständiger aus der Klammer im Ordnernamen. Erteilung ist immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen und Weitere Sachbearbeiter bleiben unangetastet. Die Zuweisung läuft über **Zuweisen** im Dashboard.
+Der Reiter **Auftrag** wird ausgefüllt: zuerst **Vorlage DiBi** (oben rechts unter Sonstiges), dann Kennzeichen, Kennzeichen des Unfallgegners mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße und Sachverständiger aus der Klammer im Ordnernamen. Erteilung ist immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen und Weitere Sachbearbeiter bleiben unangetastet. Die Zuweisung läuft über **Zuweisen** im Dashboard.
 
 ## Mit KI bearbeiten (Dashboard → assign-service)
 
@@ -54,7 +54,7 @@ Diese Schritte dürfen später für mehrere Akten parallel laufen. Sie schreiben
 
 Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfung erledigt ist.
 
-5. `auftrag` — Kennzeichen, Unfallgegner-Kennzeichen mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße, Sachverständiger. Erteilung immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen nicht ändern.
+5. `auftrag` — **Vorlage DiBi**, dann Kennzeichen, Unfallgegner-Kennzeichen mit Z@Online, Fahrzeugidentifikationsnummer, Schadentag, Schadennummer, Versicherungsnummer, Schadenort, Straße, Sachverständiger. Erteilung immer telefonisch, Erteilt durch immer den Auftraggeber. Aktenzeichen nicht ändern.
 6. `beteiligte` — Liegt eine Vollmacht im Drive-Ordner, den Kanzleinamen daraus lesen und als Anwalt mit Anrede „Firma“ eintragen. Ohne Vollmacht keinen Anwalt. Auftraggeber Anrede „Herr“, außer es steht etwas anderes da oder der Name ist bekannt weiblich. Name aus der Abtretung. Ist der Auftraggeber dort unleserlich, kommen Name und Adresse vom Fahrzeugschein in den Fotos, ohne zusätzlichen Fahrzeughalter. Weicht der Name auf dem Fahrzeugschein ab, wird er Fahrzeughalter. Stimmen die Namen überein, gibt es keinen zusätzlichen Fahrzeughalter. Kennzeichen: Schein und Bilder gelten, wenn die Abtretung davon abweicht. Die Versicherung nicht als Name abtippen.
 7. `besichtigung` — In UltraExpert ggf. zuerst **„+ Neue Besichtigung“**, dann Adresse des Auftraggebers, Ort/Firma leer. Sachverständiger aus der Klammer im Drive-Ordner: `(HU)` Hussein Souleiman, `(H)` oder `(HJ)` Hussein Jaber, `(B)` Hussein Selman, `(OS)` Osama Sleiman, `(HK)` Hassan Khodr. Unbekannte Kürzel (z. B. `(IZ)`) → **Hussein Souleiman**.
 8. `fahrzeug` — Fahrzeug über die FIN identifizieren, nicht über HSN/TSN. Variante nach FIN, Erstzulassung und Getriebe. Nächste HU von der Plakette am Kennzeichen oder von der BD, nicht aus dem abgelaufenen Stempel im Schein. Getriebe am Wählhebel prüfen, wenn der Schein es nicht hergibt.
@@ -66,6 +66,12 @@ Streng eine Akte nach der anderen. Nur mit einem Datensatz, dessen Pflichtprüfu
 14. `lichtbilder` — Vier Übersichten, dann die Übersicht mit Geomaßstab, Bauteile, Kilometerstand, FIN, Fahrzeugschein, danach Vorschäden. Kleine Bauteile dürfen mit dem größeren Teil auf einem Bild liegen, wenn der Schaden klar zu sehen ist. Jedes Bodenbild bleibt ohne Titel. Das Bodenbild am Ende der Schadenaufnahme markiert die Vorschäden. Besichtigungsbilder dem Gutachten zuordnen. Fotos 2 nur nach Kundenbilder, nicht dem Gutachten zuordnen. Videos ignorieren.
 
 Sind die Eingabe-Schritte erledigt, ist der Stand `eingetippt`.
+
+## Transparenz im Dashboard
+
+Was du während und nach einem KI-Lauf siehst (Live-Zeilen, Abschlussbericht, Ist/Soll, Roadmap): **`regeln/bot-transparenz.md`**.
+
+Referenz-Volllesung (Beispiel 2301/26, Soll vor Bearbeitung): **`regeln/fixtures/2301-26-lesung-referenz.md`**.
 
 ## Abschluss
 

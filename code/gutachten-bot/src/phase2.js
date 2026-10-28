@@ -1,4 +1,4 @@
-import { akteGesperrt } from "./eingabe-plan.js";
+import { akteGesperrt, schrittLiveText } from "./eingabe-plan.js";
 import { FachlichError, istTechnisch } from "./fehler.js";
 import { schreibeLog } from "./log.js";
 import { pruefePflichtfelder } from "./pflichtfelder.js";
@@ -58,7 +58,8 @@ export async function eingeben(db, adapter, options = {}) {
       const gespeichert = [];
       for (const schrittId of EINGABE) {
         letzterSchritt = schrittId;
-        log({ schritt: schrittId, status: "laeuft" });
+        const detail = schrittLiveText(auftrag.datensatz, schrittId);
+        log({ schritt: schrittId, status: "laeuft", detail });
         try {
           let lauf = null;
           await akte.runSchritt(schrittId, async () => {

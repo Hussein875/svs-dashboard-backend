@@ -121,18 +121,19 @@ async function wiederAnmelden(page, ziel) {
 }
 
 async function oeffneBesichtigungFallsLeer(page) {
+  await schliesseStoerungen(page);
   const ortsfeld = page.locator('[name="surveys.0.location"]').first();
-  const knopf = page.locator("button.empty-button.btn-blue").filter({
-    has: page.locator("span", { hasText: /^Neue Besichtigung$/ }),
+  const knopf = page.locator("button.empty-button, button.btn-blue, button.btn-green, button").filter({
+    hasText: /Neue Besichtigung/i,
   }).first();
 
-  const ende = Date.now() + 15_000;
+  const ende = Date.now() + 20_000;
   let geklickt = false;
   while (Date.now() < ende) {
     if (await ortsfeld.count() && await ortsfeld.isVisible().catch(() => false)) return;
     if (await knopf.count() && await knopf.isVisible().catch(() => false)) {
       await knopf.scrollIntoViewIfNeeded().catch(() => {});
-      await knopf.click();
+      await knopf.click({ timeout: 15_000 });
       geklickt = true;
       break;
     }
@@ -585,12 +586,45 @@ async function versicherungAbfragen(page, kennzeichen) {
   }
 }
 
-async function beteiligtenSchreiben(page, befehl) {
+async function oeffneNeuerBeteiligter(page) {
   await schliesseStoerungen(page);
-  const knopf = page.getByRole("button", { name: /Neuer Beteiligter/i }).first();
-  if (!(await knopf.count())) throw new NichtUmgesetztError("beteiligte");
-  await knopf.click();
-  await page.locator("[name='firstName']").first().waitFor({ state: "visible", timeout: 15000 });
+  const ziele = [
+    page.locator("button.empty-button, button.btn-green, button").filter({
+      hasText: /Neuer Beteiligter/i,
+    }),
+    page.getByRole("button", { name: /Neuer Beteiligter/i }),
+  ];
+  for (const liste of ziele) {
+    const knopf = liste.first();
+    if (!(await knopf.count())) continue;
+    if (!(await knopf.isVisible().catch(() => false))) continue;
+    await knopf.scrollIntoViewIfNeeded().catch(() => {});
+    await knopf.click({ timeout: 15_000 });
+    await page.locator("[name='firstName'], [name='companyName']").first().waitFor({ state: "visible", timeout: 20_000 });
+    return;
+  }
+  throw new NichtUmgesetztError("beteiligte");
+}
+
+async function beteiligtenSpeichern(page) {
+  const muster = [/^Hinzufügen$/i, /^Speichern$/i, /^Übernehmen$/i, /^Anlegen$/i];
+  for (const text of muster) {
+    const knopf = await sichtbarerKnopf(page, text);
+    if (knopf) {
+      await knopf.click({ timeout: 10_000 });
+      return;
+    }
+  }
+  const footer = page.locator("button").filter({ hasText: /^Speichern$/i }).last();
+  if (await footer.count() && await footer.isVisible().catch(() => false)) {
+    await footer.click();
+    return;
+  }
+  throw new FachlichError("Hinzufügen nicht gefunden");
+}
+
+async function beteiligtenSchreiben(page, befehl) {
+  await oeffneNeuerBeteiligter(page);
   const beteiligung = beteiligungText(befehl.rolle);
   const kontakttyp = KONTAKTTYP[befehl.rolle];
   if (!beteiligung || !kontakttyp) throw new FachlichError(befehl.rolle || "Beteiligung");
@@ -606,9 +640,7 @@ async function beteiligtenSchreiben(page, befehl) {
     await schreibeFeld(page, "zipCode", befehl.plz);
     await schreibeFeld(page, "city", befehl.ort);
   }
-  const hinzu = await sichtbarerKnopf(page, /^Hinzufügen$/i);
-  if (!hinzu) throw new FachlichError("Hinzufügen nicht gefunden");
-  await hinzu.click();
-  await page.waitForURL((url) => !String(url).includes("/participants/edit"), { timeout: 20000 });
+  await beteiligtenSpeichern(page);
+  await page.waitForURL((url) => !String(url).includes("/participants/edit"), { timeout: 25_000 }).catch(() => {});
   await warteAufSeite(page);
 }

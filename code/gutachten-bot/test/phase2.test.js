@@ -88,7 +88,19 @@ test("Eingabe tippt eine Akte und lässt die zweite warten", async () => {
     offen = false;
     const ergebnis = await erste;
     assert.equal(ergebnis.stand, "eingetippt");
-    assert.equal(zeilen.some((zeile) => zeile.includes("DH-ED 1701") || zeile.includes("Danaj")), false);
+    assert.equal(
+      zeilen.some((zeile) => {
+        try {
+          const entry = JSON.parse(zeile);
+          return entry.nummer === "2201/26"
+            && (String(entry.detail || "").includes("DH-ED 1701")
+              || String(entry.detail || "").includes("Danaj"));
+        } catch {
+          return false;
+        }
+      }),
+      false,
+    );
     assert.equal(getVorgang(db, "2200/26").stand, "eingetippt");
   } finally {
     closeState(db);

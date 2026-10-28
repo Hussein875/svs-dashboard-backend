@@ -172,6 +172,7 @@ function auftrag(daten) {
     speichern: true,
     befehle: [
       { typ: "seite", pfad: "order/general" },
+      { typ: "waehle", feld: "Vorlage", wert: "DiBi" },
       befehl,
     ],
   };
@@ -355,4 +356,89 @@ export function eingabePlan(daten) {
     "dokumente-import": offen("dokumente-import"),
     lichtbilder: offen("lichtbilder"),
   };
+}
+
+function finKurz(fin) {
+  const text = String(fin || "").trim();
+  if (text.length <= 8) return text;
+  return `…${text.slice(-7)}`;
+}
+
+/** Kurztext für Live-Anzeige: was der Bot in diesem Schritt verstanden hat. */
+export function schrittLiveText(daten, schrittId) {
+  const id = String(schrittId || "").trim();
+  const plan = eingabePlan(daten)[id];
+  if (!plan) return "";
+  if (plan.nichtUmgesetzt) return "Schritt noch nicht angebunden";
+  if (plan.wiederholen) return `Es fehlt: ${plan.wiederholen}`;
+  if (plan.speichern === false) {
+    return plan.wiederholen ? `Es fehlt: ${plan.wiederholen}` : "Keine lesbaren Angaben";
+  }
+
+  const quelle = daten || {};
+  switch (id) {
+    case "auftrag": {
+      const b = plan.befehle.find((teil) => teil.typ === "auftrag") || {};
+      const teile = ["Vorlage DiBi"];
+      if (b.kennzeichen) teile.push(`Kennzeichen ${b.kennzeichen}`);
+      if (b.fin) teile.push(`FIN ${finKurz(b.fin)}`);
+      if (b.schadentag) teile.push(`Schadentag ${b.schadentag}`);
+      if (b.unfallgegner) teile.push(`Gegner ${b.unfallgegner}`);
+      if (b.sachverstaendiger) teile.push(`SV ${b.sachverstaendiger}`);
+      return teile.join(" · ") || "Auftrag öffnen";
+    }
+    case "beteiligte": {
+      const person = quelle.auftraggeber || {};
+      const name = String(person.name || "").trim();
+      const ort = adresse(person);
+      const extras = [];
+      const halter = String(quelle.fahrzeughalter?.name || "").trim();
+      if (halter && halter.toLowerCase() !== name.toLowerCase()) extras.push(`Halter ${halter}`);
+      if (quelle.vollmacht === true && quelle.anwalt?.name) extras.push(`Anwalt ${quelle.anwalt.name}`);
+      const basis = name ? `Auftraggeber ${name}${ort ? `, ${ort}` : ""}` : "Beteiligte";
+      return extras.length ? `${basis} · ${extras.join(" · ")}` : basis;
+    }
+    case "besichtigung": {
+      const sv = sachverstaendigerName(quelle.kuerzel);
+      const ort = adresse(quelle.auftraggeber);
+      if (ort && sv) return `Besichtigung beim Auftraggeber · ${sv}`;
+      if (sv) return `Sachverständiger ${sv}`;
+      return ort ? `Ort ${ort}` : "Besichtigung anlegen";
+    }
+    case "fahrzeug": {
+      const teile = [];
+      const fin = wert(quelle.fin);
+      if (fin) teile.push(`FIN ${finKurz(fin)}`);
+      if (wert(quelle.kilometerstand)) teile.push(`${wert(quelle.kilometerstand)} km`);
+      if (wert(quelle.erstzulassung)) teile.push(`EZ ${wert(quelle.erstzulassung)}`);
+      if (wert(quelle.getriebe)) teile.push(wert(quelle.getriebe));
+      return teile.join(" · ") || "Fahrzeugdaten";
+    }
+    case "bereifung": {
+      const reifen = quelle.bereifung || {};
+      const teile = [];
+      if (reifen.profiltiefe) teile.push(`${reifen.profiltiefe} mm`);
+      if (reifen.hersteller) teile.push(reifen.hersteller);
+      if (reifen.dimension) teile.push(reifen.dimension);
+      if (reifen.felgen) teile.push(reifen.felgen);
+      return teile.length ? teile.join(" · ") : "Bereifung";
+    }
+    case "vor-ort":
+      return wert(quelle.schilderung)
+        ? "Vor-Ort-Check + Schilderung"
+        : "Besichtigungsbedingungen und Probelauf";
+    case "vorschaeden":
+      return (quelle.vorschaeden?.imSchadenbereich?.length || quelle.vorschaeden?.ausserhalb?.length)
+        ? "Vorschäden aus BD übernehmen"
+        : "Vorschäden (keine Liste)";
+    case "schadenfeststellung": {
+      const teile = [];
+      if (quelle.fahrbereitschaft) teile.push(String(quelle.fahrbereitschaft));
+      const n = (quelle.beschaedigungen || []).length;
+      if (n) teile.push(`${n} Schadenpunkte`);
+      return teile.join(" · ") || "Schadenfeststellung";
+    }
+    default:
+      return "";
+  }
 }

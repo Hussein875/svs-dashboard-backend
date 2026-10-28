@@ -9,12 +9,21 @@ function text(wert) {
   return String(wert ?? "").trim();
 }
 
+function kennzeichenRoh(wert) {
+  const teil = text(wert).split("+")[0].trim();
+  let roh = teil.toUpperCase().replace(/\s+/g, " ");
+  roh = roh.replace(/^([A-ZÄÖÜ]{1,3}-[A-ZÄÖÜ]{1,2})(\d)/, "$1 $2");
+  return roh;
+}
+
 function kennzeichen(wert) {
-  const roh = text(wert).toUpperCase().replace(/\s+/g, " ");
+  const roh = kennzeichenRoh(wert);
   const treffer = roh.match(PLATTE);
   if (!treffer) return "";
   return `${treffer[1]}-${treffer[2]} ${treffer[3]}`;
 }
+
+export { kennzeichen };
 
 function feld(wert, muster) {
   const inhalt = text(wert);
@@ -60,7 +69,9 @@ function teilSatz(name) {
 function person(quelle) {
   const vorname = text(quelle?.vorname);
   const nachname = text(quelle?.nachname);
-  const name = [vorname, nachname].filter(Boolean).join(" ") || text(quelle?.name);
+  let name = [vorname, nachname].filter(Boolean).join(" ") || text(quelle?.name);
+  const komma = name.match(/^([^,]+),\s*(.+)$/);
+  if (komma) name = `${komma[2].trim()} ${komma[1].trim()}`;
   const strasse = text(quelle?.strasse);
   const plz = text(quelle?.plz);
   const ort = text(quelle?.ort);

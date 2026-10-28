@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createUltraExpertAdapter } from "../src/adapter-ultraexpert.js";
-import { eingabePlan, schadenText, vorschaedenText, waehleModell, waehleOption } from "../src/eingabe-plan.js";
+import { eingabePlan, schadenText, schrittLiveText, vorschaedenText, waehleModell, waehleOption } from "../src/eingabe-plan.js";
 import { textFuerTrigger } from "../src/schaden-trigger.js";
 import { eingeben } from "../src/phase2.js";
 import { analysiere } from "../src/pipeline.js";
@@ -93,6 +93,15 @@ test("Plan übernimmt nur lesbare Felder und lässt Gegner und HSN weg", () => {
   assert.equal(reifenPlan.befehle.some((befehl) => befehl.feld === "Hersteller"), false);
 });
 
+test("Live-Text beschreibt verstandene Angaben pro Schritt", () => {
+  const daten = datensatz();
+  assert.match(schrittLiveText(daten, "auftrag"), /Vorlage DiBi/);
+  assert.match(schrittLiveText(daten, "auftrag"), /Kennzeichen HH-AB 100/);
+  assert.match(schrittLiveText(daten, "auftrag"), /SV Hussein Souleiman/);
+  assert.match(schrittLiveText(daten, "beteiligte"), /Auftraggeber Anna Beispiel/);
+  assert.match(schrittLiveText(daten, "fahrzeug"), /1000 km/);
+});
+
 test("abweichender Scheinname wird Fahrzeughalter, gleicher Name nicht", () => {
   const abweichend = datensatz();
   abweichend.fahrzeughalter = {
@@ -134,6 +143,10 @@ test("Versicherung kommt aus dem Kennzeichen des Unfallgegners", () => {
   assert.equal(abfrage.kennzeichen, "HH-AB 100");
   assert.equal(abfrage.fin, "WVWZZZCDZLW002977");
   assert.equal(plan.auftrag.befehle.some((befehl) => befehl.pfad === "order/general"), true);
+  assert.deepEqual(
+    plan.auftrag.befehle.find((befehl) => befehl.feld === "Vorlage"),
+    { typ: "waehle", feld: "Vorlage", wert: "DiBi" },
+  );
   assert.equal(plan.beteiligte.befehle.some((befehl) => befehl.rolle === "Versicherung"), false);
 });
 
@@ -175,7 +188,17 @@ test("Eingabe speichert die bekannten Schritte und stoppt vor dem Dokumenten-Imp
     assert.equal(getVorgang(db, "2400/26").schritte["dokumente-import"], "offen");
     assert.equal(seite.gespeichert.length, 7);
     assert.equal(seite.gespeichert.some((stand) => JSON.stringify(stand).includes("HH-AB 100")), false);
-    assert.equal(zeilen.some((zeile) => zeile.includes("HH-AB 100") || zeile.includes("Beispiel")), false);
+    assert.equal(
+      zeilen.some((zeile) => {
+        try {
+          const entry = JSON.parse(zeile);
+          return entry.status === "laeuft" && String(entry.detail || "").includes("HH-AB 100");
+        } catch {
+          return false;
+        }
+      }),
+      true,
+    );
     assert.equal(seite.geoeffnet.includes("2083/26"), false);
   } finally {
     closeState(db);

@@ -138,7 +138,10 @@ function lesbareLogzeile(zeile) {
     };
     const schritt = namen[eintrag?.schritt] || String(eintrag?.schritt || "").trim();
     const status = staende[eintrag?.status] || String(eintrag?.status || "").trim();
-    if (schritt && status) return `${schritt}: ${status}`;
+    const detail = String(eintrag?.detail || "").trim();
+    if (schritt && status) {
+      return detail ? `${schritt}: ${status} — ${detail}` : `${schritt}: ${status}`;
+    }
     return schritt || text;
   } catch {
     return text;

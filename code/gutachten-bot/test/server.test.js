@@ -102,8 +102,7 @@ test("ohne Anmeldung kein Start, mit PIN kommt der Live-Schritt", async () => {
       controller.abort();
     }
     assert.match(text, /2300\/26/);
-    assert.equal(text.includes("HH-AB 123"), false);
-    assert.equal(text.includes("Hamburg"), false);
+    assert.match(text, /Kennzeichen HH-AB 123/);
   } finally {
     server.close();
     closeState(db);

@@ -6,7 +6,7 @@ import { ordneDateien } from "./dateien-ordnen.js";
 import { ladeBytes, ladeVorschau } from "./drive-foto.js";
 import { leseOrdnerMeta, listeOrdnerBaum } from "./drive-ordner.js";
 import { frageGemini, schadenKuerzel } from "./gemini-lesen.js";
-import { reifenFelder, rohAusModell } from "./lese-roh.js";
+import { kennzeichen, reifenFelder, rohAusModell } from "./lese-roh.js";
 
 const PDF_GRENZE = 15 * 1024 * 1024;
 
@@ -38,8 +38,9 @@ function pdfAuftrag(art) {
   return [
     "Lies nur diese Abtretung. Antworte als JSON. Unleserliches bleibt leer. Nichts schätzen.",
     "Auftraggeber ist die Person unter 'Auftraggeber / Anspruchsteller', mit Straße und Hausnummer, PLZ und Ort.",
-    "kennzeichenAbtretung ist nur das amtliche Kennzeichen des Auftraggebers.",
-    "kennzeichenUnfallgegner ist nur das Kennzeichen des Unfallgegners. Das Kennzeichen des Auftraggebers gehört dort nicht hinein.",
+    "name oft als Nachname, Vorname mit Komma. Dann name genau so übernehmen oder als vorname und nachname.",
+    "kennzeichenAbtretung ist nur das amtliche Kennzeichen des Auftraggebers, z. B. ME-HS 1718.",
+    "kennzeichenUnfallgegner ist das Kennzeichen des Unfallgegners. Stehen zwei Kennzeichen mit +, beide in kennzeichenUnfallgegner, getrennt durch +.",
     "Den Namen der Versicherung nicht übernehmen. Sie wird über das Kennzeichen des Unfallgegners ermittelt.",
     "schadentag so, wie er dasteht, auch mit zweistelliger Jahreszahl. Ein Datum nach heute ist falsch gelesen. Ein Strich, der wie eine 7 aussieht und das Datum in die Zukunft schiebt, ist eine 1.",
     "schadennummer, versicherungsnummer, schadenort und schadenstrasse nur, wenn sie klar auf der Abtretung stehen.",
@@ -222,6 +223,11 @@ function datumVergleich(wert) {
 function nimm(links, rechts) {
   const datum = datumVergleich(links);
   if (datum && datum === datumVergleich(rechts)) return datum;
+  const platteLinks = kennzeichen(links);
+  const platteRechts = kennzeichen(rechts);
+  if (platteLinks && platteRechts && platteLinks === platteRechts) return platteLinks;
+  if (platteLinks && !platteRechts) return platteLinks;
+  if (platteRechts && !platteLinks) return platteRechts;
   if (vergleich(links) && vergleich(links) === vergleich(rechts)) {
     const a = String(links).trim();
     const b = String(rechts).trim();

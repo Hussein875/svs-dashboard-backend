@@ -1,9 +1,10 @@
-export function logZeile({ nummer, schritt, status, zeit = new Date().toISOString() }) {
+export function logZeile({ nummer, schritt, status, detail = "", zeit = new Date().toISOString() }) {
   return JSON.stringify({
     zeit,
     nummer: String(nummer || ""),
     schritt: String(schritt || ""),
     status: String(status || ""),
+    detail: String(detail || "").trim(),
   });
 }
 

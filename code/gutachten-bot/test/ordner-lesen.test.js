@@ -203,3 +203,46 @@ test("Lesung aus dem Modell übernimmt Plakette und lässt die Vollmacht weg", (
   assert.equal(leer.schein.fin.lesbar, false);
   assert.equal(leer.bd.hu, "");
 });
+
+test("AE wie 2301: Kennzeichen, Komma-Name, zwei Gegnerkennzeichen", () => {
+  const felder = gleicheFelder(
+    {
+      auftraggeber: {
+        name: "Houzan, Faro",
+        strasse: "Heinrich-Zille-Platz 1",
+        plz: "40789",
+        ort: "Monheim am Rhein",
+      },
+      kennzeichenAbtretung: "ME-HS 1718",
+      kennzeichenUnfallgegner: "ME-FJ 210 + ME-ED 523",
+    },
+    {
+      auftraggeber: {
+        name: "Faro Houzan",
+        strasse: "Heinrich-Zille-Platz 1",
+        plz: "40789",
+        ort: "Monheim am Rhein",
+      },
+      kennzeichenAbtretung: "ME-HS1718",
+      kennzeichenUnfallgegner: "ME-FJ 210",
+    },
+  );
+  assert.equal(felder.kennzeichenAbtretung, "ME-HS 1718");
+  assert.equal(felder.kennzeichenUnfallgegner, "ME-FJ 210");
+  const roh = rohAusModell({
+    auftraggeber: {
+      name: "Houzan, Faro",
+      strasse: "Heinrich-Zille-Platz 1",
+      plz: "40789",
+      ort: "Monheim am Rhein",
+    },
+    kennzeichenAbtretung: "ME-HS 1718",
+    kennzeichenUnfallgegner: "ME-FJ 210 + ME-ED 523",
+    schadentag: "27.12.24",
+    schadenort: "Langenfeld",
+    schadenstrasse: "Karlstr. 3",
+  });
+  assert.equal(roh.ae.auftraggeber.name, "Faro Houzan");
+  assert.equal(roh.ae.kennzeichen.wert, "ME-HS 1718");
+  assert.equal(roh.ae.unfallgegnerKennzeichen.wert, "ME-FJ 210");
+});
