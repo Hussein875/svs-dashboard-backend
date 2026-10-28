@@ -4,6 +4,7 @@ import { abschlussMeldung } from "../src/abschluss-meldung.js";
 
 test("Abschluss nennt das Gespeicherte und einmal, was fehlt", () => {
   const text = abschlussMeldung("2138/26", {
+    gelesen: ["Kennzeichen", "Kilometerstand"],
     gespeichert: ["auftrag"],
     manuell: ["Bereifung (fehlt)", "Auftraggeber (unleserlich)"],
     uebersprungen: [
@@ -14,6 +15,7 @@ test("Abschluss nennt das Gespeicherte und einmal, was fehlt", () => {
     ],
   });
   assert.match(text, /Gespeichert: Auftrag/);
+  assert.match(text, /Gelesen: Kennzeichen, Kilometerstand/);
   assert.match(text, /^Offen:/m);
   assert.ok(text.includes("\n"));
   assert.equal(text.includes("Call log"), false);

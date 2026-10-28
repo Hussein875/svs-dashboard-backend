@@ -4,7 +4,7 @@ import { createUltraExpertAdapter } from "./adapter-ultraexpert.js";
 import { teileAnalyseQuellen, werteLesung } from "./lesung.js";
 import { leseExtraktionen, normalizeDriveFolderId } from "./drive-ordner.js";
 import { leseFallOrdner } from "./ordner-lesen.js";
-import { pruefePflichtfelder } from "./pflichtfelder.js";
+import { pflichtfeldListe, pruefePflichtfelder } from "./pflichtfelder.js";
 import { createPlaywrightSeite } from "./ultraexpert-seite.js";
 import { starteAkte } from "./start-akte.js";
 import { analysiere, stelleEingabeBereit } from "./pipeline.js";
@@ -53,6 +53,38 @@ export function fuehreDatensatzZusammen(bisher, neu) {
     ergebnis[key] = feldZusammen(bisher[key], wert);
   }
   return ergebnis;
+}
+
+const LESUNG_EXTRA = [
+  { label: "FIN", ok: (d) => String(d?.fin?.wert || "").trim() && d?.fin?.lesbar !== false },
+  { label: "Erstzulassung", ok: (d) => String(d?.erstzulassung?.wert || "").trim() },
+  { label: "Getriebe", ok: (d) => String(d?.getriebe?.wert || "").trim() },
+  { label: "Fahrbereitschaft", ok: (d) => String(d?.fahrbereitschaft || "").trim() },
+  { label: "Bereifung", ok: (d) => d?.bereifung?.lesbar === true },
+  { label: "Unfallgegner-Kennzeichen", ok: (d) => String(d?.unfallgegnerKennzeichen?.wert || "").trim() },
+  { label: "Schilderung", ok: (d) => String(d?.schilderung || "").trim() },
+  { label: "Anwalt", ok: (d) => d?.vollmacht === true && String(d?.anwalt?.name || "").trim() },
+];
+
+export function lesungStandBericht(datensatz, luecken) {
+  const quelle = datensatz || {};
+  const fehlendIds = new Set(pruefePflichtfelder(quelle).fehlend.map((feld) => feld.id));
+  const gelesen = pflichtfeldListe()
+    .filter((feld) => !fehlendIds.has(feld.id))
+    .map((feld) => feld.label);
+  for (const extra of LESUNG_EXTRA) {
+    if (extra.ok(quelle)) gelesen.push(extra.label);
+  }
+  const offen = Array.isArray(luecken) ? luecken : lesungOffen(quelle);
+  return { gelesen, offen };
+}
+
+export function lesungStandKurz(datensatz, luecken) {
+  const { gelesen, offen } = lesungStandBericht(datensatz, luecken);
+  if (!offen.length) return `Lesung fertig: ${gelesen.length} Angaben aus Drive`;
+  const beispiel = offen.slice(0, 3).join("; ");
+  const mehr = offen.length > 3 ? ` (+${offen.length - 3})` : "";
+  return `Lesung fertig: ${gelesen.length} gelesen, ${offen.length} offen — ${beispiel}${mehr}`;
 }
 
 export function lesungOffen(datensatz) {
@@ -232,7 +264,16 @@ export async function bereiteKiDatensatz({ akte, driveFolderId, onStep, lesen })
   luecken = lesungOffen(datensatz || {});
   const kuerzel = meta?.kuerzel || datensatz?.kuerzel || "";
   const { dokumente, fotos } = teileAnalyseQuellen(datensatz || {});
-  return { nummer, folderId, meta: meta || { name: "" }, kuerzel, dokumente, fotos, luecken };
+  return {
+    nummer,
+    folderId,
+    meta: meta || { name: "" },
+    kuerzel,
+    dokumente,
+    fotos,
+    luecken,
+    datensatz: datensatz || {},
+  };
 }
 
 export async function runKiGutachten({
@@ -257,7 +298,12 @@ export async function runKiGutachten({
     throw err;
   }
 
-  const quelle = vorbereitet || await bereiteKiDatensatz({ akte: nummer, driveFolderId: folderId });
+  const quelle = vorbereitet || await bereiteKiDatensatz({
+    akte: nummer,
+    driveFolderId: folderId,
+    onStep,
+  });
+  onStep?.(lesungStandKurz(quelle.datensatz, quelle.luecken));
   const meta = quelle.meta;
   const kuerzel = quelle.kuerzel;
   const dokumente = quelle.dokumente;
@@ -294,7 +340,8 @@ export async function runKiGutachten({
     const uebersprungen = Array.isArray(ergebnis.offen) ? [...ergebnis.offen] : [];
     if (ergebnis.detail) uebersprungen.push(String(ergebnis.detail));
     const gespeichert = Array.isArray(ergebnis.gespeichert) ? ergebnis.gespeichert : [];
-    const message = abschlussMeldung(nummer, { gespeichert, manuell, uebersprungen });
+    const { gelesen } = lesungStandBericht(quelle.datensatz, quelle.luecken);
+    const message = abschlussMeldung(nummer, { gelesen, gespeichert, manuell, uebersprungen });
 
     return {
       akte: nummer,

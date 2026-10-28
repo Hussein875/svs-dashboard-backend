@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fuehreDatensatzZusammen, lesungOffen } from "../src/ki-lauf.js";
+import { fuehreDatensatzZusammen, lesungOffen, lesungStandBericht } from "../src/ki-lauf.js";
 
 test("eine spätere Lesung füllt nur die Lücken", () => {
   const erste = {
@@ -29,4 +29,7 @@ test("eine spätere Lesung füllt nur die Lücken", () => {
   assert.equal(zusammen.schadenfotos.vorneRechts, true);
   assert.equal(zusammen.auftraggeber.name, "Adham Khalid Khider");
   assert.equal(lesungOffen(zusammen).some((zeile) => zeile.startsWith("FIN")), false);
+  const stand = lesungStandBericht(zusammen, []);
+  assert.ok(stand.gelesen.includes("FIN"));
+  assert.equal(stand.offen.length, 0);
 });

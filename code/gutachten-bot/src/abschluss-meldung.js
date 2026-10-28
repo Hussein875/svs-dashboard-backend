@@ -72,8 +72,19 @@ function mergeOffen(eintraege) {
   }));
 }
 
-export function abschlussMeldung(nummer, { gespeichert = [], manuell = [], uebersprungen = [] } = {}) {
+export function abschlussMeldung(nummer, {
+  gelesen = [],
+  gespeichert = [],
+  manuell = [],
+  uebersprungen = [],
+} = {}) {
   const zeilen = [`Akte ${nummer}`];
+  const gelesenNamen = gelesen.map((label) => String(label || "").trim()).filter(Boolean);
+  zeilen.push(
+    gelesenNamen.length
+      ? `Gelesen: ${gelesenNamen.join(", ")}`
+      : "Gelesen: —",
+  );
   const gespeichertNamen = gespeichert.map((id) => NAMEN[id] || id);
   zeilen.push(
     gespeichertNamen.length
