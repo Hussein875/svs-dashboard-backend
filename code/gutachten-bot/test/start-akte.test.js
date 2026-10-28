@@ -107,6 +107,27 @@ test("die angeklickte Akte wird bearbeitet, nicht die ältere", async () => {
   }
 });
 
+test("Ordner-Mismatch blockiert KI nicht", async () => {
+  const db = neueDb();
+  const geoeffnet = [];
+  try {
+    const ergebnis = await starteAkte(db, {
+      nummer: "2301",
+      ordnerName: "2299/26 Unfallgutachten Beispiel (HU)",
+      dokumente: async () => basis,
+      fotos: async () => basis,
+    }, {
+      async vorbereiten(nummer) {
+        geoeffnet.push(nummer);
+      },
+    }, { owner: "ordner", trotzLuecken: true, nacheinander: true, sleep: async () => {} });
+    assert.equal(ergebnis.gestartet, true);
+    assert.deepEqual(geoeffnet, ["2301"]);
+  } finally {
+    closeState(db);
+  }
+});
+
 test("fehlende Pflichtfelder halten die Eingabe nicht auf", async () => {
   const db = neueDb();
   const geoeffnet = [];

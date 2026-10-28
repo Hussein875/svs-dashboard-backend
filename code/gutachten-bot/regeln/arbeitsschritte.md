@@ -29,6 +29,8 @@ Der Reiter **Auftrag** wird ausgefüllt: Kennzeichen, Kennzeichen des Unfallgegn
 
 Der Knopf liefert Aktenzeichen und Drive-Ordner-ID. Keine PIN, keine lokale Bot-Seite.
 
+**Der KI-Lauf bricht nicht wegen Konfiguration ab** (unbekanntes SV-Kürzel, Ordnername passt nicht zum Sheet, einzelne Pflichtfelder fehlen). UltraExpert wird geöffnet, lesbare Felder werden getippt, Lücken stehen in der Abschlussmeldung. Nur ohne Aktenzeichen oder ohne gültige Drive-Ordner-ID startet nichts.
+
 **Phase 1 läuft beim Klick mit**, bevor in UltraExpert etwas gespeichert wird. Phase 1 schreibt nichts in UltraExpert.
 
 1. `dokumente-lesen` und `fotos-auswerten` — der Klick liest BD, Abtretung und die Fotos im Drive-Ordner selbst. Videos und der Ordner Fotos 2 bleiben draußen. JSON-Dateien nur, wenn keine Dokumente im Ordner liegen.

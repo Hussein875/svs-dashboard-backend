@@ -7,6 +7,8 @@ import { leseFallOrdner } from "./ordner-lesen.js";
 import { pruefePflichtfelder } from "./pflichtfelder.js";
 import { createPlaywrightSeite } from "./ultraexpert-seite.js";
 import { starteAkte } from "./start-akte.js";
+import { analysiere, stelleEingabeBereit } from "./pipeline.js";
+import { eingeben } from "./phase2.js";
 import { abschlussMeldung } from "./abschluss-meldung.js";
 import { closeState, openState } from "./state.js";
 
@@ -118,6 +120,59 @@ function zustandPfad(nummer) {
   return path.join(basis, `${datei}.sqlite`);
 }
 
+function zusammenfuegenQuelle(dokumente, fotos, kuerzel) {
+  return {
+    ...dokumente,
+    ...fotos,
+    kuerzel,
+    schadenfotos: fotos?.schadenfotos ?? dokumente?.schadenfotos,
+  };
+}
+
+async function starteKiEingabe(db, auftrag, adapter, options, onStep) {
+  let ergebnis = await starteAkte(db, auftrag, adapter, options);
+  if (ergebnis.gestartet) return ergebnis;
+
+  const grund = ergebnis.grund || "unbekannt";
+  if (grund === "nummer") {
+    throw new Error(`Gutachten-Bot nicht gestartet (${grund}).`);
+  }
+
+  const nummer = String(ergebnis.nummer || auftrag.nummer || "").trim();
+  onStep?.(`Weiter trotz ${grund}: UltraExpert wird geöffnet und lesbare Felder eingetragen.`);
+
+  const kuerzel = String(auftrag.kuerzel || "").trim().toUpperCase();
+  const dokumente = await auftrag.dokumente();
+  const fotos = await auftrag.fotos();
+  const datensatz = zusammenfuegenQuelle(dokumente, fotos, kuerzel);
+
+  if (grund === "pflichtfelder" || grund === "ordner") {
+    await analysiere(db, {
+      nummer,
+      owner: options.owner,
+      trotzLuecken: true,
+      dokumente: async () => ({ ...dokumente, kuerzel }),
+      fotos: async () => fotos,
+    });
+  } else {
+    stelleEingabeBereit(db, nummer, datensatz, "");
+  }
+
+  ergebnis = await eingeben(db, adapter, { ...options, nummer, fortsetzen: true });
+  if (ergebnis.gestartet) return ergebnis;
+
+  await adapter.vorbereiten?.(nummer);
+  return {
+    gestartet: true,
+    nummer,
+    stand: "teilweise",
+    gespeichert: [],
+    offen: [grund],
+    detail: `Eingabe nach ${grund} manuell fortsetzen`,
+    fehlend: ergebnis.fehlend || [],
+  };
+}
+
 export function mapKiUmgebung() {
   if (!process.env.UX_USERNAME && process.env.UX_CUSTOMER_NR) {
     process.env.UX_USERNAME = process.env.UX_CUSTOMER_NR;
@@ -220,7 +275,7 @@ export async function runKiGutachten({
     const adapter = createUltraExpertAdapter({
       seite: createPlaywrightSeite(page),
     });
-    const ergebnis = await starteAkte(db, {
+    const ergebnis = await starteKiEingabe(db, {
       nummer,
       ordnerName: meta.name,
       kuerzel,
@@ -232,11 +287,7 @@ export async function runKiGutachten({
       maxVersuche: 3,
       nacheinander: true,
       trotzLuecken: true,
-    });
-
-    if (!ergebnis.gestartet) {
-      throw new Error(`Gutachten-Bot nicht gestartet (${ergebnis.grund || "unbekannt"}).`);
-    }
+    }, onStep);
 
     const stand = ergebnis.stand || "unbekannt";
     const manuell = quelle.luecken || [];

@@ -115,6 +115,14 @@ function einreihen(db, nummer, datensatz, bericht, optionen = {}) {
   return Number(result.lastInsertRowid);
 }
 
+/** KI-Lauf: Queue-Eintrag sicherstellen, auch wenn der normale Start abbricht. */
+export function stelleEingabeBereit(db, nummer, datensatz, bericht = "") {
+  const ziel = String(nummer || "").trim();
+  if (!ziel) throw new Error("Vorgangsnummer fehlt.");
+  const text = String(bericht || "").trim() || "KI: lesbare Felder eintragen";
+  return einreihen(db, ziel, datensatz, text, { aktualisieren: true });
+}
+
 export function setzeQueueStatus(db, id, status) {
   db.prepare("UPDATE eingabe_queue SET status = ? WHERE id = ?").run(status, id);
 }
