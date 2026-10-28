@@ -34,7 +34,7 @@ Reihenfolge der **Live-Zeilen** (Schrittname + optional Detail):
 |---------|-----------------|-------------------------|
 | `auftrag` | Reiter Auftrag | Kennzeichen … · FIN … · SV … · Gegner … |
 | `beteiligte` | Beteiligte | Auftraggeber Name, Adresse · ggf. Halter · Anwalt |
-| `besichtigung` | Besichtigung anlegen | Ort beim Auftraggeber · Sachverständiger |
+| `besichtigung` | Besichtigung anlegen | Ort beim Auftraggeber · Sachverständiger · **Teilnehmer** (Beteiligte zuvor anlegen) |
 | `fahrzeug` | Fahrzeug identifizieren | FIN … · km · EZ · Getriebe |
 | `bereifung` | Reifen | Profiltiefe · Hersteller · Dimension · Felgen |
 | `vor-ort` | Besichtigung Vor Ort | Bedingungen, Schilderung, Probelauf |

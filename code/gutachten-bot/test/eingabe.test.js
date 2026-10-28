@@ -70,10 +70,13 @@ test("Plan übernimmt nur lesbare Felder und lässt Gegner und HSN weg", () => {
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "surveys.0.locationName").wert, "");
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "surveys.0.location").wert, "Weg 1, 20095 Hamburg");
   assert.equal(plan.besichtigung.befehle.find((befehl) => befehl.feld === "Sachverständiger").wert, "Hussein Souleiman");
+  const teilnehmer = plan.besichtigung.befehle.find((befehl) => befehl.typ === "teilnehmer");
+  assert.deepEqual(teilnehmer?.namen, ["Frau Anna Beispiel", "Kanzlei Beispiel"]);
   assert.equal(plan.beteiligte.befehle.find((befehl) => befehl.rolle === "Anwalt").anrede, "Firma");
   assert.equal(plan.beteiligte.befehle.some((befehl) => befehl.rolle === "Versicherung"), false);
   assert.equal(JSON.stringify(plan.beteiligte).includes("Versicherung Beispiel"), false);
   assert.equal(plan.fahrzeug.befehle.find((befehl) => befehl.feld === "vehicle.vin").wert, "WVWZZZCDZLW002977");
+  assert.equal(plan.fahrzeug.befehle.find((befehl) => befehl.feld === "licensePlate").wert, "HH-AB 100");
   assert.equal(
     plan.bereifung.befehle.some((befehl) => befehl.typ === "waehle" && befehl.feld === "Felgen" && befehl.wert === "Aluminium"),
     true,
@@ -187,7 +190,7 @@ test("Eingabe speichert die bekannten Schritte und stoppt vor dem Dokumenten-Imp
     assert.equal(getVorgang(db, "2400/26").schritte.bereifung, "erledigt");
     assert.equal(getVorgang(db, "2400/26").schritte["dokumente-import"], "offen");
     assert.equal(seite.gespeichert.length, 7);
-    assert.equal(seite.gespeichert.some((stand) => JSON.stringify(stand).includes("HH-AB 100")), false);
+    assert.equal(seite.gespeichert.some((stand) => JSON.stringify(stand).includes("HH-AB 100")), true);
     assert.equal(
       zeilen.some((zeile) => {
         try {

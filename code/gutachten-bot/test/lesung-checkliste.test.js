@@ -24,6 +24,15 @@ test("Checkliste zeigt gelesenes Kennzeichen und fehlende Felder", () => {
   assert.equal(fin.status, "fehlt");
 });
 
+test("Schilderung als { wert } wird als Text angezeigt", () => {
+  const rows = lesungCheckliste({
+    schilderung: { wert: "Auffahrunfall an der Kreuzung", lesbar: true },
+  });
+  const s = rows.find((r) => r.id === "schilderung");
+  assert.equal(s.wert, "Auffahrunfall an der Kreuzung");
+  assert.equal(s.status, "ok");
+});
+
 test("Overrides überschreiben Anzeige und Datensatz", () => {
   const basis = { kennzeichen: { wert: "X", lesbar: true } };
   const neu = applyLesungOverrides(basis, { kennzeichen: "ME-HS 1718" });

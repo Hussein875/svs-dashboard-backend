@@ -15,6 +15,10 @@ const UX_SCHRITTE = [
 
 function zeige(wert) {
   if (wert == null) return "";
+  if (typeof wert === "object" && !Array.isArray(wert)) {
+    if ("wert" in wert) return String(wert.wert ?? "").replace(/\s+/g, " ").trim();
+    if ("name" in wert) return String(wert.name ?? "").replace(/\s+/g, " ").trim();
+  }
   return String(wert).replace(/\s+/g, " ").trim();
 }
 
@@ -259,7 +263,7 @@ const OVERRIDE_SETTER = {
     d.fahrbereitschaft = v;
   },
   schilderung: (d, v) => {
-    d.schilderung = v;
+    d.schilderung = { wert: v, lesbar: true };
   },
   anwalt: (d, v) => {
     d.anwalt = { ...(d.anwalt || {}), name: v };

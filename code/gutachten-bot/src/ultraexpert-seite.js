@@ -185,15 +185,18 @@ export function createPlaywrightSeite(page) {
         werte.clear();
         return;
       }
-      if (befehl.typ === "text" || befehl.typ === "datum") {
-        const field = befehl.typ === "datum"
-          ? page.locator(`#${befehl.feld}`)
-          : page.locator(`[name="${befehl.feld}"]`);
+      if (befehl.typ === "text") {
+        const field = page.locator(`[name="${befehl.feld}"]`).first();
         await field.click();
         await field.fill(befehl.wert);
         await field.press("Tab");
         const gelesen = (await field.inputValue()).trim();
         if (gelesen !== befehl.wert) throw new FachlichError(befehl.feld);
+        werte.set(befehl.feld, befehl.wert);
+        return;
+      }
+      if (befehl.typ === "datum") {
+        await schreibeDatumFeld(page, befehl.feld, befehl.wert);
         werte.set(befehl.feld, befehl.wert);
         return;
       }
@@ -211,11 +214,27 @@ export function createPlaywrightSeite(page) {
         return;
       }
       if (befehl.typ === "fin") {
+        const vinFeld = page.locator("[name='vehicle.vin']").first();
+        const finText = String(befehl.fin || "").trim();
+        if (finText) {
+          await vinFeld.click();
+          await vinFeld.fill(finText);
+          await vinFeld.press("Tab").catch(() => {});
+        }
         await finSuchen(page);
-        const optionen = await page.locator("[id*='option'], [role='option'], tr").allTextContents();
+        await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+        await page.waitForTimeout(600);
+        const optionen = await page.locator(
+          ".modal-content tr, .select2-results__option, [id*='option'], [role='option'], table tbody tr",
+        ).allTextContents();
         const modell = waehleModell(optionen, befehl);
         if (!modell) throw new FachlichError("Modellauswahl nicht eindeutig");
-        await page.getByText(modell, { exact: false }).first().click();
+        const treffer = page.getByText(modell, { exact: false }).first();
+        if (await treffer.count()) await treffer.click({ timeout: 12_000 });
+        else {
+          const zeile = page.locator("tr, [role='row']").filter({ hasText: modell }).first();
+          await zeile.click({ timeout: 12_000 });
+        }
         werte.set("vehicle.vin", befehl.fin);
         werte.set("modell", modell);
         return;
@@ -227,6 +246,11 @@ export function createPlaywrightSeite(page) {
       if (befehl.typ === "beteiligter") {
         await beteiligtenSchreiben(page, befehl);
         werte.set(befehl.rolle, befehl.firma || `${befehl.vorname} ${befehl.nachname}`);
+        return;
+      }
+      if (befehl.typ === "teilnehmer") {
+        await waehleTeilnehmer(page, befehl.namen);
+        for (const name of befehl.namen || []) werte.set(`Teilnehmer:${name}`, name);
         return;
       }
       if (befehl.typ === "versicherung-abfrage") {
@@ -391,6 +415,9 @@ export function beteiligungText(rolle) {
   return BETEILIGUNG[rolle] || "";
 }
 
+/** UltraExpert-Liste: grüner „+ Neuer Beteiligter / Kontakt“-Button */
+const NEUER_BETEILIGTER_KONTAKT = /Neuer Beteiligter(\s*\/\s*Kontakt)?/i;
+
 async function sichtbarerKnopf(page, muster) {
   const ziele = [
     page.getByRole("button", { name: muster }),
@@ -419,6 +446,57 @@ async function waehleReactAuswahl(page, klasse, text) {
     }
   }
   throw new FachlichError(text);
+}
+
+/** Multi-Select „Teilnehmer“ — Beteiligte müssen vorher unter Beteiligte angelegt sein. */
+async function waehleTeilnehmer(page, namen) {
+  const liste = (Array.isArray(namen) ? namen : [namen])
+    .map((eintrag) => String(eintrag || "").trim())
+    .filter(Boolean);
+  if (!liste.length) return;
+  await schliesseStoerungen(page);
+
+  const control = page.locator(
+    ".select-container.__field_participants [class*='control'], .select-container.__field_participants .select2-selection",
+  ).first();
+  const fallback = page.locator(".form-group, .row, .col").filter({
+    has: page.locator("label, .label-text, .label").filter({ hasText: /^Teilnehmer$/i }),
+  }).first().locator(".select-container [class*='control'], .select-container .select2-selection").first();
+
+  for (const gesucht of liste) {
+    let geoeffnet = false;
+    for (const ziel of [control, fallback]) {
+      if (!(await ziel.count())) continue;
+      if (!(await ziel.isVisible().catch(() => false))) continue;
+      await ziel.scrollIntoViewIfNeeded().catch(() => {});
+      await ziel.click({ timeout: 12_000 });
+      geoeffnet = true;
+      break;
+    }
+    if (!geoeffnet) throw new FachlichError("Teilnehmer");
+
+    await page.waitForTimeout(350);
+    const optionenLocs = page.locator(".select2-results__option, [role='option'], [id*='option']");
+    await optionenLocs.first().waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    let optionen = (await optionenLocs.allTextContents()).map((t) => t.replace(/\s+/g, " ").trim()).filter(Boolean);
+    let treffer = waehleOption(optionen, gesucht);
+    if (!treffer) {
+      const nachname = gesucht.split(/\s+/).filter(Boolean).pop();
+      if (nachname) treffer = waehleOption(optionen, nachname);
+    }
+    if (!treffer) {
+      await page.keyboard.press("Escape").catch(() => {});
+      throw new FachlichError(`Teilnehmer ${gesucht}`);
+    }
+    const option = optionenLocs.filter({ hasText: treffer }).first();
+    if (!(await option.count())) {
+      await page.keyboard.press("Escape").catch(() => {});
+      throw new FachlichError(`Teilnehmer ${gesucht}`);
+    }
+    await option.click({ timeout: 10_000 });
+    await page.waitForTimeout(250);
+  }
+  await page.keyboard.press("Escape").catch(() => {});
 }
 
 async function schreibeFeld(page, name, wert) {
@@ -456,6 +534,36 @@ async function schreibeWennPasst(page, name, wert) {
   return (await feld.inputValue()).trim() === inhalt;
 }
 
+function kennzeichenNorm(text) {
+  return String(text || "").replace(/[\s-]/g, "").toUpperCase();
+}
+
+async function schreibeKennzeichenFeld(page, namen, wert, labelMuster) {
+  const inhalt = String(wert || "").trim();
+  if (!inhalt) return false;
+  const kandidaten = Array.isArray(namen) ? namen : [namen];
+  for (const name of kandidaten) {
+    const feld = page.locator(`[name="${name}"]`).first();
+    if (!(await feld.count())) continue;
+    if (!(await feld.isVisible().catch(() => false))) continue;
+    await feld.click();
+    await feld.fill(inhalt);
+    await feld.press("Tab").catch(() => {});
+    const gelesen = (await feld.inputValue()).trim();
+    if (gelesen === inhalt || kennzeichenNorm(gelesen) === kennzeichenNorm(inhalt)) return true;
+  }
+  const labelRegex = labelMuster || /Amtl\.?\s*Kennz(?!.*Unfall)/i;
+  const perLabel = page.getByLabel(labelRegex, { exact: false }).first();
+  if (await perLabel.count()) {
+    await perLabel.click();
+    await perLabel.fill(inhalt);
+    await perLabel.press("Tab").catch(() => {});
+    const gelesen = (await perLabel.inputValue()).trim();
+    if (gelesen === inhalt || kennzeichenNorm(gelesen) === kennzeichenNorm(inhalt)) return true;
+  }
+  return false;
+}
+
 async function schreibeSchadentag(page, wert) {
   const feld = page.locator("[name='damageDate']").first();
   if (!(await feld.count())) return false;
@@ -487,22 +595,54 @@ async function erteilungSetzen(page, wert) {
   throw new FachlichError("Erteilung");
 }
 
+async function schreibeDatumFeld(page, id, wert) {
+  const field = page.locator(`#${id}`).first();
+  if (!(await field.count())) throw new FachlichError(id);
+  await field.click();
+  await field.fill(wert);
+  await field.press("Tab").catch(() => {});
+  const gelesen = datumSchluessel(await field.inputValue());
+  const erwartet = datumSchluessel(wert);
+  if (!erwartet || gelesen !== erwartet) throw new FachlichError(id);
+}
+
 async function finSuchen(page) {
+  await schliesseStoerungen(page);
   const vin = page.locator("[name='vehicle.vin']").first();
-  await vin.click();
-  await vin.press("Tab").catch(() => {});
+  await vin.waitFor({ state: "visible", timeout: 15_000 });
+  const fin = (await vin.inputValue()).trim();
+  if (!fin) throw new FachlichError("FIN fehlt");
+
+  const lupeNebenFin = vin.locator(
+    'xpath=ancestor::*[contains(@class,"input-group") or contains(@class,"form-group") or contains(@class,"row")][1]//button[contains(@class,"btn-blue") and contains(@class,"icon-only")]',
+  ).first();
+  const lupeFin = page.locator('button.btn-blue.icon-only').filter({
+    has: page.locator('i.fa-magnifying-glass, i[class*="magnifying-glass"], i.fa-search'),
+  }).first();
+
+  const kandidaten = [lupeNebenFin, lupeFin];
+  for (const knopf of kandidaten) {
+    if (!(await knopf.count())) continue;
+    if (!(await knopf.isVisible().catch(() => false))) continue;
+    if (!(await knopf.isEnabled().catch(() => false))) continue;
+    await knopf.scrollIntoViewIfNeeded().catch(() => {});
+    await knopf.click({ timeout: 12_000 });
+    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+    return;
+  }
+
   const knoepfe = vin.locator("xpath=following::button");
   const ende = Date.now() + 8_000;
   while (Date.now() < ende) {
-    const anzahl = Math.min(await knoepfe.count(), 6);
+    const anzahl = Math.min(await knoepfe.count(), 8);
     for (let index = 0; index < anzahl; index += 1) {
       const knopf = knoepfe.nth(index);
       if (!(await knopf.isVisible().catch(() => false))) continue;
       if (!(await knopf.isEnabled().catch(() => false))) continue;
       const klasse = String(await knopf.getAttribute("class").catch(() => "") || "");
-      const titel = String(await knopf.getAttribute("title").catch(() => "") || "");
-      if (/icon-only|btn-blue/.test(klasse) || /such|fin|fahrzeug|abfrag/i.test(titel)) {
+      if (/btn-blue.*icon-only|icon-only.*btn-blue/.test(klasse)) {
         await knopf.click({ timeout: 8_000 });
+        await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
         return;
       }
     }
@@ -514,8 +654,14 @@ async function finSuchen(page) {
 async function auftragSchreiben(page, befehl) {
   await schliesseStoerungen(page);
   let geschrieben = 0;
+  if (befehl.kennzeichen) {
+    if (await schreibeKennzeichenFeld(page, ["licensePlate", "vehicle.licensePlate"], befehl.kennzeichen)) {
+      geschrieben += 1;
+    } else {
+      throw new FachlichError("Amtl. Kennzeichen");
+    }
+  }
   const paare = [
-    ["licensePlate", befehl.kennzeichen],
     ["vehicle.vin", befehl.fin],
     ["damageNr", befehl.schadennummer],
     ["insuranceNr", befehl.versicherungsnummer],
@@ -542,12 +688,24 @@ async function auftragSchreiben(page, befehl) {
     }
   }
   if (befehl.unfallgegner) {
+    const gegnerOk = await schreibeKennzeichenFeld(
+      page,
+      ["opponentLicensePlate"],
+      befehl.unfallgegner,
+      /Unfallgegner/i,
+    );
+    if (gegnerOk) geschrieben += 1;
     try {
       await versicherungAbfragen(page, befehl.unfallgegner);
       geschrieben += 1;
     } catch {
-      const inhalt = await page.locator("[name='opponentLicensePlate']").first().inputValue().catch(() => "");
-      if (String(inhalt).trim()) geschrieben += 1;
+      if (gegnerOk) {
+        /* Kennzeichen steht, Z@Online optional */
+      } else {
+        const inhalt = await page.locator("[name='opponentLicensePlate']").first().inputValue().catch(() => "");
+        if (String(inhalt).trim()) geschrieben += 1;
+        else throw new FachlichError("Amtl. Kennzeichen Unfallgegner");
+      }
     }
   }
   if (!geschrieben) throw new FachlichError("Auftragsdaten fehlen");
@@ -589,33 +747,58 @@ async function versicherungAbfragen(page, kennzeichen) {
 async function oeffneNeuerBeteiligter(page) {
   await schliesseStoerungen(page);
   const ziele = [
-    page.locator("button.empty-button, button.btn-green, button").filter({
-      hasText: /Neuer Beteiligter/i,
+    page.locator("button.btn-success.btn-lg").filter({ hasText: NEUER_BETEILIGTER_KONTAKT }),
+    page.locator("button.btn-success").filter({ hasText: NEUER_BETEILIGTER_KONTAKT }),
+    page.locator("button").filter({ has: page.locator("span", { hasText: NEUER_BETEILIGTER_KONTAKT }) }),
+    page.locator("button.empty-button, button.btn-green, button.btn-success, button").filter({
+      hasText: NEUER_BETEILIGTER_KONTAKT,
     }),
-    page.getByRole("button", { name: /Neuer Beteiligter/i }),
+    page.getByRole("button", { name: NEUER_BETEILIGTER_KONTAKT }),
   ];
-  for (const liste of ziele) {
-    const knopf = liste.first();
-    if (!(await knopf.count())) continue;
-    if (!(await knopf.isVisible().catch(() => false))) continue;
-    await knopf.scrollIntoViewIfNeeded().catch(() => {});
-    await knopf.click({ timeout: 15_000 });
-    await page.locator("[name='firstName'], [name='companyName']").first().waitFor({ state: "visible", timeout: 20_000 });
-    return;
+  const ende = Date.now() + 25_000;
+  while (Date.now() < ende) {
+    for (const liste of ziele) {
+      const knopf = liste.first();
+      if (!(await knopf.count())) continue;
+      if (!(await knopf.isVisible().catch(() => false))) continue;
+      await knopf.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await knopf.click({ timeout: 15_000 });
+      } catch {
+        await knopf.click({ timeout: 15_000, force: true }).catch(() => {});
+      }
+      await page.locator("[name='firstName'], [name='companyName']").first().waitFor({ state: "visible", timeout: 20_000 });
+      return;
+    }
+    await page.waitForTimeout(400);
+    await schliesseStoerungen(page);
   }
   throw new NichtUmgesetztError("beteiligte");
 }
 
 async function beteiligtenSpeichern(page) {
   const muster = [/^Hinzufügen$/i, /^Speichern$/i, /^Übernehmen$/i, /^Anlegen$/i];
+  const ziele = [
+    ...muster.map((text) => page.locator("button.btn-success, button.btn-primary, button").filter({ hasText: text })),
+    ...muster.map((text) => page.getByRole("button", { name: text })),
+  ];
   for (const text of muster) {
     const knopf = await sichtbarerKnopf(page, text);
     if (knopf) {
+      await knopf.scrollIntoViewIfNeeded().catch(() => {});
       await knopf.click({ timeout: 10_000 });
       return;
     }
   }
-  const footer = page.locator("button").filter({ hasText: /^Speichern$/i }).last();
+  for (const liste of ziele) {
+    const knopf = liste.first();
+    if (!(await knopf.count())) continue;
+    if (!(await knopf.isVisible().catch(() => false))) continue;
+    await knopf.scrollIntoViewIfNeeded().catch(() => {});
+    await knopf.click({ timeout: 10_000 });
+    return;
+  }
+  const footer = page.locator("button").filter({ hasText: /^Speichern$|^Hinzufügen$/i }).last();
   if (await footer.count() && await footer.isVisible().catch(() => false)) {
     await footer.click();
     return;

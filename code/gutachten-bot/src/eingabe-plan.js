@@ -86,6 +86,42 @@ function nameTeile(name) {
   return { vorname: teile.slice(0, -1).join(" "), nachname: teile.at(-1) };
 }
 
+/** Anzeigename in Besichtigung → Teilnehmer (nach Anlegen unter Beteiligte). */
+export function teilnehmerLabelPerson(anrede, name) {
+  const teile = nameTeile(name);
+  if (!teile) return "";
+  const titel = anrede === "Frau" ? "Frau" : "Herr";
+  return `${titel} ${teile.vorname} ${teile.nachname}`.replace(/\s+/g, " ").trim();
+}
+
+/** Beteiligte, die in Besichtigung 1 als Teilnehmer gewählt werden (Reihenfolge: AG, Halter, Anwalt). */
+export function teilnehmerListe(daten) {
+  const quelle = daten || {};
+  const namen = [];
+  const person = quelle.auftraggeber || {};
+  if (person.lesbar !== false && person.name) {
+    const label = teilnehmerLabelPerson(person.anrede, person.name);
+    if (label) namen.push(label);
+  }
+  const agName = String(person.name || "").trim().toLowerCase();
+  const halter = quelle.fahrzeughalter;
+  const halterName = String(halter?.name || "").trim();
+  if (
+    halter
+    && halter.lesbar !== false
+    && halterName
+    && halterName.toLowerCase() !== agName
+  ) {
+    const label = teilnehmerLabelPerson(halter.anrede, halterName);
+    if (label) namen.push(label);
+  }
+  const anwalt = String(quelle.anwalt?.name || "").trim();
+  if (quelle.vollmacht === true && quelle.anwalt?.lesbar !== false && anwalt) {
+    namen.push(anwalt);
+  }
+  return [...new Set(namen)];
+}
+
 function fachlich(id, grund) {
   return { id, fachlich: grund, speichern: false, befehle: [] };
 }
@@ -97,6 +133,7 @@ function offen(id) {
 function besichtigung(daten) {
   const ort = adresse(daten.auftraggeber);
   const name = sachverstaendigerName(daten.kuerzel);
+  const teilnehmer = teilnehmerListe(daten);
   const befehle = [{ typ: "seite", pfad: "surveys" }];
   if (ort) {
     befehle.push({ typ: "waehle", feld: "Besichtigungsort", wert: "Auftraggeber" });
@@ -104,6 +141,7 @@ function besichtigung(daten) {
     befehle.push({ typ: "text", feld: "surveys.0.location", wert: ort });
   }
   if (name) befehle.push({ typ: "waehle", feld: "Sachverständiger", wert: name });
+  if (teilnehmer.length) befehle.push({ typ: "teilnehmer", namen: teilnehmer });
   if (befehle.length === 1) return { id: "besichtigung", speichern: false, befehle: [], wiederholen: "Besichtigung" };
   return { id: "besichtigung", speichern: true, befehle };
 }
@@ -180,6 +218,7 @@ function auftrag(daten) {
 
 function fahrzeug(daten) {
   const fin = wert(daten.fin);
+  const knz = wert(daten.kennzeichen);
   const ez = wert(daten.erstzulassung);
   const getriebe = wert(daten.getriebe);
   const km = wert(daten.kilometerstand);
@@ -187,8 +226,9 @@ function fahrzeug(daten) {
   const befehle = [{ typ: "seite", pfad: "vehicle/identification" }];
   if (fin) befehle.push({ typ: "text", feld: "vehicle.vin", wert: fin });
   if (fin && ez && getriebe) befehle.push({ typ: "fin", fin, erstzulassung: ez, getriebe });
-  if (km) befehle.push({ typ: "text", feld: "vehicle.milageRead", wert: km });
+  if (knz) befehle.push({ typ: "text", feld: "licensePlate", wert: knz });
   if (ez) befehle.push({ typ: "datum", feld: "registrationDate_input", wert: ez });
+  if (km) befehle.push({ typ: "text", feld: "vehicle.milageRead", wert: km });
   if (hu) befehle.push({ typ: "datum", feld: "generalInspectionDate_input", wert: hu });
   const farbe = wert(daten.farbe);
   if (farbe) befehle.push({ typ: "text", feld: "vehicle.color", wert: farbe });
@@ -401,9 +441,12 @@ export function schrittLiveText(daten, schrittId) {
     case "besichtigung": {
       const sv = sachverstaendigerName(quelle.kuerzel);
       const ort = adresse(quelle.auftraggeber);
-      if (ort && sv) return `Besichtigung beim Auftraggeber · ${sv}`;
-      if (sv) return `Sachverständiger ${sv}`;
-      return ort ? `Ort ${ort}` : "Besichtigung anlegen";
+      const tn = teilnehmerListe(quelle);
+      const teile = [];
+      if (ort) teile.push("beim Auftraggeber");
+      if (sv) teile.push(sv);
+      if (tn.length) teile.push(`Teilnehmer: ${tn.join(", ")}`);
+      return teile.length ? `Besichtigung ${teile.join(" · ")}` : "Besichtigung anlegen";
     }
     case "fahrzeug": {
       const teile = [];
