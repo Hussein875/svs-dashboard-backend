@@ -20,7 +20,8 @@ export function akteGesperrt(nummer) {
 }
 
 export function sachverstaendigerName(kuerzel) {
-  return EXPERTEN[String(kuerzel || "").trim().toUpperCase()] || "";
+  const key = String(kuerzel || "").trim().toUpperCase();
+  return EXPERTEN[key] || EXPERTEN.HU;
 }
 
 export function waehleOption(optionen, gesucht) {

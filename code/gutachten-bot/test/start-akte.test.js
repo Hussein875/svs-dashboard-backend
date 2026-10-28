@@ -53,9 +53,11 @@ test("Ordnername liefert Nummer und Kürzel", () => {
   });
   assert.equal(sachverstaendigerName("OS"), "Osama Sleiman");
   assert.equal(sachverstaendigerName("HK"), "Hassan Khodr");
+  assert.equal(sachverstaendigerName("IZ"), "Hussein Souleiman");
+  assert.equal(sachverstaendigerName(""), "Hussein Souleiman");
 });
 
-test("ein unbekannter Sachverständiger startet keine Eingabe", async () => {
+test("unbekanntes Kürzel im Ordner blockiert den Start nicht", async () => {
   const db = neueDb();
   const geoeffnet = [];
   try {
@@ -69,10 +71,8 @@ test("ein unbekannter Sachverständiger startet keine Eingabe", async () => {
         geoeffnet.push(nummer);
       },
     }, { owner: "start" });
-    assert.equal(ergebnis.gestartet, false);
-    assert.equal(ergebnis.grund, "sachverstaendiger");
-    assert.equal(ergebnis.kuerzel, "ZZ");
-    assert.equal(geoeffnet.length, 0);
+    assert.equal(ergebnis.gestartet, true);
+    assert.equal(geoeffnet.length, 1);
   } finally {
     closeState(db);
   }

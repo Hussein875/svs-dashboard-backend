@@ -1,4 +1,3 @@
-import { sachverstaendigerName } from "./eingabe-plan.js";
 import { aktenzeichenPasst, leseOrdnerNamen, loeseVorgangsNummer } from "./ordner.js";
 import { eingeben } from "./phase2.js";
 import { analysiere } from "./pipeline.js";
@@ -13,9 +12,6 @@ export async function starteAkte(db, auftrag, adapter, options = {}) {
   const nummer = loeseVorgangsNummer(sheetAkte, ordner.nummer);
 
   const kuerzel = String(auftrag?.kuerzel || ordner.kuerzel || "").trim().toUpperCase();
-  if (!sachverstaendigerName(kuerzel)) {
-    return { gestartet: false, nummer, grund: "sachverstaendiger", kuerzel };
-  }
 
   const analyse = await analysiere(db, {
     nummer,
