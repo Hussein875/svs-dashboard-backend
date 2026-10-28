@@ -222,6 +222,17 @@ test("Lesung aus dem Modell übernimmt Plakette und lässt die Vollmacht weg", (
   assert.equal(leer.bd.hu, "");
 });
 
+test("Vorschäden außerhalb als String statt Array", () => {
+  const roh = rohAusModell({}, {
+    schaden: { vorschadenAusserhalb: "TVL, THL" },
+    bdGelesen: true,
+  });
+  assert.deepEqual(roh.bd.vorschadenAusserhalb, [
+    "Tür vorne links beschädigt",
+    "Tür hinten links beschädigt",
+  ]);
+});
+
 test("AE wie 2301: Kennzeichen, Komma-Name, zwei Gegnerkennzeichen", () => {
   const felder = gleicheFelder(
     {

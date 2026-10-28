@@ -1,3 +1,5 @@
+import { vorschadenListe } from "./lese-roh.js";
+
 function text(wert, lesbar) {
   const inhalt = String(wert || "").trim();
   if (lesbar === false || !inhalt) return { wert: "", lesbar: false };
@@ -45,8 +47,8 @@ export function datensatzAusBd(lesung) {
     vorschaeden: {
       angegeben: quelle.vorschaedenAngegeben === true,
       lesbar: quelle.vorschaedenLesbar !== false,
-      imSchadenbereich: Array.isArray(quelle.vorschadenImBereich) ? quelle.vorschadenImBereich : [],
-      ausserhalb: Array.isArray(quelle.vorschadenAusserhalb) ? quelle.vorschadenAusserhalb : [],
+      imSchadenbereich: vorschadenListe(quelle.vorschadenImBereich),
+      ausserhalb: vorschadenListe(quelle.vorschadenAusserhalb),
       repariert: [],
     },
   };

@@ -50,6 +50,24 @@ function vorschadenZeile(wert) {
   return kuerzel[roh.toLowerCase()] || roh;
 }
 
+/** Gemini liefert Vorschäden oft als String statt Array — vor .map() normalisieren. */
+export function vorschadenListe(wert) {
+  if (Array.isArray(wert)) return wert;
+  if (wert == null || wert === "") return [];
+  if (typeof wert === "object" && "wert" in wert) return vorschadenListe(wert.wert);
+  const roh = text(wert);
+  if (!roh) return [];
+  if (roh.startsWith("[") && roh.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(roh);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* ignore */
+    }
+  }
+  return roh.split(/[,;|\n]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 function teilSatz(name) {
   const roh = text(name);
   const bekannt = [
@@ -300,8 +318,8 @@ export function rohAusModell(modell, optionen = {}) {
     beschaedigungen: schadenSaetze(schaden),
     vorschaedenAngegeben: true,
     vorschaedenLesbar: true,
-    vorschadenImBereich: (schaden.vorschadenImBereich || []).map(vorschadenZeile).filter(Boolean),
-    vorschadenAusserhalb: (schaden.vorschadenAusserhalb || []).map(vorschadenZeile).filter(Boolean),
+    vorschadenImBereich: vorschadenListe(schaden.vorschadenImBereich).map(vorschadenZeile).filter(Boolean),
+    vorschadenAusserhalb: vorschadenListe(schaden.vorschadenAusserhalb).map(vorschadenZeile).filter(Boolean),
     uebersichten: {
       vorneLinks: text(uebersichten.vorneLinks),
       vorneRechts: text(uebersichten.vorneRechts),
