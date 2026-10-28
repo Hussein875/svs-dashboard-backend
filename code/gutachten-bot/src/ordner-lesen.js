@@ -22,7 +22,8 @@ function pdfAuftrag(art) {
     return [
       "Lies nur dieses Besichtigungsblatt. Antworte als JSON. Unleserliches bleibt leer. Nichts schätzen.",
       "Fahrbereitschaft: Sind die Kästchen 'nicht fahrbereit' und 'nicht verkehrssicher' leer, ist der Wert verkehrssicher. Nur das gesetzte Kreuz ergibt nicht verkehrssicher oder nicht fahrbereit. Ein Kreuz in der Reifenzeile gehört nicht zur Fahrbereitschaft.",
-      "Reifen: die Zahl bei V und bei H ist die Profiltiefe. Der Name darunter ist der Hersteller. Die Größe daneben ist die Dimension. Der obere Kreis ist Stahl, der untere Aluminium. Nur das gesetzte Kreuz.",
+      "Reifen: Oben auf dem Blatt steht oft die Zeile Reifen. V und H sind die Profiltiefe in mm (z. B. V: 8, H: 8). Daneben steht die Dimension (z. B. 215/60 R 17). Der Hersteller steht oft rechts (z. B. FALKEN). Oberer Kreis = Stahl, unterer Kreis = Aluminium.",
+      "bereifung als JSON: {\"profiltiefeV\":\"\",\"profiltiefeH\":\"\",\"dimension\":\"\",\"hersteller\":\"\",\"felgenStahl\":false,\"felgenAluminium\":false}. Nur was auf dem Blatt steht.",
       "Beschädigt, zum Beispiel TVL, ist ein Vorschaden und steht in vorschadenAusserhalb. TVL heißt Tür vorne links beschädigt.",
       "Der aktuelle Anstoß steht im Feld Schadenbereich, in der Skizze und in der Handschrift daneben, nicht in der Zeile Beschädigt. PDC heißt Parkhilfe-Sensor. Ein N oder neu am Bauteil heißt erneuern.",
       "polizei true nur bei Kreuz 'Polizeilich aufgenommen'. scheckheft true nur bei Kreuz Scheckheftgepflegt.",

@@ -125,7 +125,13 @@ export function lesungOffen(datensatz) {
     if (!String(reifen.hersteller || "").trim()) offen.push("Hersteller");
     if (!String(reifen.dimension || "").trim()) offen.push("Dimension");
     if (reifen.felgen !== "Stahl" && reifen.felgen !== "Aluminium") offen.push("Felgen");
-    namen.push(offen.length === 4 ? "Bereifung (fehlt)" : `Bereifung (${offen.join(", ")} fehlt)`);
+    if (offen.length === 1 && offen[0] === "Felgen" && reifen.kernVollstaendig) {
+      namen.push("Bereifung (Felgen fehlt)");
+    } else if (offen.length === 4) {
+      namen.push("Bereifung (fehlt)");
+    } else if (offen.length) {
+      namen.push(`Bereifung (${offen.join(", ")} fehlt)`);
+    }
   }
   if (!String(datensatz?.unfallgegnerKennzeichen?.wert || "").trim()) namen.push("Unfallgegner-Kennzeichen (fehlt)");
   if (datensatz?.vollmacht === true && !String(datensatz?.anwalt?.name || "").trim()) namen.push("Anwalt (unleserlich)");

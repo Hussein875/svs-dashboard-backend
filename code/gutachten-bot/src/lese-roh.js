@@ -96,7 +96,7 @@ function satzOhneKuerzel(eintrag) {
 }
 
 function profiltiefe(wert) {
-  const roh = text(wert).toLowerCase().replace(/\s*mm\b/g, "").replace(",", ".").trim();
+  const roh = text(wert).replace(/^V:\s*/i, "").replace(/^H:\s*/i, "").toLowerCase().replace(/\s*mm\b/g, "").replace(",", ".").trim();
   const treffer = roh.match(/^(\d{1,2})(?:\.(\d))?$/);
   if (!treffer) return "";
   const zahl = Number(`${treffer[1]}.${treffer[2] || "0"}`);
@@ -106,10 +106,13 @@ function profiltiefe(wert) {
 }
 
 function herstellerName(wert) {
-  const roh = text(wert);
+  const roh = text(wert).trim().replace(/\s+/g, " ");
   if (!roh || roh.length < 2 || roh.length > 40) return "";
-  if (!/^[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9 .&+-]{1,39}$/.test(roh)) return "";
+  if (/^\d{3}\s*\/\s*\d{2}/.test(roh)) return "";
+  if (/^V:|^H:/i.test(roh)) return "";
   if (/unleser|unklar|nicht erkennbar|geschätzt|geschaetzt/i.test(roh)) return "";
+  if (/^[A-ZÄÖÜ0-9][A-ZÄÖÜ0-9 .&+-]{1,39}$/.test(roh)) return roh;
+  if (!/^[A-Za-zÄÖÜäöüß]/.test(roh)) return "";
   return roh;
 }
 
@@ -130,14 +133,55 @@ function felgenNorm(wert) {
   return "";
 }
 
+/** BD-Reifenblock (V/H, Dimension, FALKEN, Felgen-Kreuz) in einheitliche Felder. */
+export function bereifungRohNormalisieren(quelle) {
+  const q = quelle && typeof quelle === "object" ? quelle : {};
+  const profilV = profiltiefe(q.profiltiefeV ?? q.v ?? q.V ?? q.profilV);
+  const profilH = profiltiefe(q.profiltiefeH ?? q.h ?? q.H ?? q.profilH);
+  const profilEinzel = profiltiefe(q.profiltiefe ?? q.profiltiefeMm ?? q.profil);
+  const profil = profilEinzel || profilV || profilH || [profilV, profilH].filter(Boolean).sort((a, b) => Number(a) - Number(b))[0] || "";
+
+  let dimension = dimensionNorm(q.dimension ?? q.groesse ?? q.reifengroesse ?? q.size);
+  let hersteller = herstellerName(q.hersteller ?? q.marke ?? q.brand);
+  if (!dimension && herstellerName(q.dimension)) {
+    dimension = dimensionNorm(q.dimension);
+  }
+  if (!hersteller && q.dimension && !dimensionNorm(q.dimension)) {
+    hersteller = herstellerName(q.dimension);
+  }
+
+  let felgen = felgenNorm(q.felgen);
+  if (!felgen && q.felgenAluminium === true) felgen = "Aluminium";
+  if (!felgen && q.felgenStahl === true) felgen = "Stahl";
+  if (!felgen && q.aluminium === true) felgen = "Aluminium";
+  if (!felgen && q.stahl === true) felgen = "Stahl";
+
+  return {
+    profiltiefe: profil,
+    hersteller,
+    dimension,
+    felgen,
+    herstellerLesbar: Boolean(hersteller),
+    dimensionLesbar: Boolean(dimension),
+  };
+}
+
 export function reifenFelder(bd, bild) {
-  const links = bd || {};
-  const rechts = bild || {};
-  const profil = profiltiefe(links.profiltiefe) || profiltiefe(rechts.profiltiefe);
-  const hersteller = herstellerName(links.hersteller) || herstellerName(rechts.hersteller);
-  const dimension = dimensionNorm(links.dimension) || dimensionNorm(rechts.dimension);
-  const felgen = felgenNorm(links.felgen) || felgenNorm(rechts.felgen);
-  return { profiltiefe: profil, hersteller, dimension, felgen, lesbar: Boolean(profil && hersteller && dimension && felgen) };
+  const links = bereifungRohNormalisieren(bd);
+  const rechts = bereifungRohNormalisieren(bild);
+  const profil = links.profiltiefe || rechts.profiltiefe;
+  const hersteller = links.hersteller || rechts.hersteller;
+  const dimension = links.dimension || rechts.dimension;
+  const felgen = links.felgen || rechts.felgen;
+  const kern = Boolean(profil && hersteller && dimension);
+  return {
+    profiltiefe: profil,
+    hersteller,
+    dimension,
+    felgen,
+    lesbar: Boolean(kern && felgen),
+    kernVollstaendig: kern,
+  };
 }
 
 function fahrbereitschaftAus(wert, bdGelesen) {
@@ -251,6 +295,7 @@ export function rohAusModell(modell, optionen = {}) {
       dimensionLesbar: Boolean(dimension),
       felgen,
       lesbar: reifenKlar,
+      kernVollstaendig: reifen.kernVollstaendig === true,
     },
     beschaedigungen: schadenSaetze(schaden),
     vorschaedenAngegeben: true,

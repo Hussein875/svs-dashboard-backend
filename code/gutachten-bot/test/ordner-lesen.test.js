@@ -41,6 +41,24 @@ test("Zwei Reifenfotos werden gesammelt, eine Übersicht nicht", async () => {
   assert.deepEqual(rollen.reifen, ["IMG_2.JPG", "IMG_3.JPG"]);
 });
 
+test("BD-Reifenzeile wie 2301 (V/H, Falken, 215/60 R17)", () => {
+  const roh = rohAusModell({
+    bereifung: {
+      profiltiefeV: "8",
+      profiltiefeH: "8",
+      dimension: "215/60 R 17",
+      hersteller: "FALKEN",
+      felgenAluminium: true,
+    },
+  }, { bdGelesen: true });
+  assert.equal(roh.bd.bereifung.profiltiefe, "8");
+  assert.equal(roh.bd.bereifung.hersteller, "FALKEN");
+  assert.equal(roh.bd.bereifung.dimension, "215/60 R17");
+  assert.equal(roh.bd.bereifung.felgen, "Aluminium");
+  assert.equal(roh.bd.bereifung.lesbar, true);
+  assert.equal(roh.bd.bereifung.kernVollstaendig, true);
+});
+
 test("Reifenfotos füllen die Bereifung, wenn die BD leer ist", () => {
   const roh = rohAusModell({}, {
     bereifungBild: { profiltiefe: "5 mm", hersteller: "Michelin", dimension: "205/55R16", felgen: "Alu" },
