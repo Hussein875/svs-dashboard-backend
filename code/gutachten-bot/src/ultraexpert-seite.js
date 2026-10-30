@@ -29,10 +29,13 @@ export async function fuehreSchritt(seite, schritt) {
     try {
       const pruefung = await seite.pruefe();
       if (!pruefung?.ok) probleme.push("Rücklesen");
-      else {
-        await seite.speichern();
-        gespeichert = true;
-      }
+    } catch (error) {
+      if (error?.code === "BOT_STOPPED") throw error;
+      probleme.push(kurzFehler(error));
+    }
+    try {
+      await seite.speichern();
+      gespeichert = true;
     } catch (error) {
       if (error?.code === "BOT_STOPPED") throw error;
       probleme.push(kurzFehler(error));
@@ -88,10 +91,7 @@ async function schliesseStoerungen(page) {
     await closeBtn.click({ timeout: 3000 }).catch(() => {});
     await page.keyboard.press("Escape").catch(() => {});
   }
-  const banner = page.locator(".alert").filter({ hasText: /Mehrfachzugriff/i }).first();
-  if (await banner.isVisible().catch(() => false)) {
-    await banner.locator("button.close, .close").first().click().catch(() => {});
-  }
+  /* Mehrfachzugriff-Banner absichtlich stehen lassen — Speichern unten rechts funktioniert trotzdem. */
 }
 
 async function warteAufSeite(page) {
@@ -241,6 +241,10 @@ export function createPlaywrightSeite(page) {
       }
       if (befehl.typ === "auftrag") {
         await auftragSchreiben(page, befehl);
+        if (befehl.kennzeichen) werte.set("licensePlate", befehl.kennzeichen);
+        if (befehl.fin) werte.set("vehicle.vin", befehl.fin);
+        if (befehl.unfallgegner) werte.set("opponentLicensePlate", befehl.unfallgegner);
+        if (befehl.schadentag) werte.set("damageDate", befehl.schadentag);
         return;
       }
       if (befehl.typ === "beteiligter") {
@@ -267,23 +271,36 @@ export function createPlaywrightSeite(page) {
     async pruefe() {
       for (const [feld, erwartet] of werte) {
         if (feld === "modell" || feld === "Auftraggeber" || feld === "Anwalt" || feld === "Versicherung" || feld === "vorschaeden") continue;
+        if (feld === "Vorlage") continue;
         if (["Besichtigungsort", "Sachverständiger", "Besichtigungsbedingungen", "Besichtigungszustand", "Identifizierung", "Probelauf Antrieb", "Allgemeinzustand", "Plausibilität", "Scheckheftgepflegt", "movementType", "airbagReleased"].includes(feld)) {
           continue;
         }
         const aktuell = await lies(feld);
+        if (feld === "licensePlate" || feld === "opponentLicensePlate") {
+          if (kennzeichenNorm(aktuell) !== kennzeichenNorm(erwartet)) return { ok: false };
+          continue;
+        }
+        if (feld === "damageDate") {
+          if (datumSchluessel(aktuell) !== datumSchluessel(erwartet) && aktuell !== erwartet) return { ok: false };
+          continue;
+        }
         if (aktuell !== erwartet) return { ok: false };
       }
       return { ok: true };
     },
     async speichern() {
+      await schliesseStoerungen(page);
       const knopf = await sichtbarerKnopf(page, /^Speichern$/i);
       if (knopf) {
+        await knopf.scrollIntoViewIfNeeded().catch(() => {});
         try {
-          await knopf.click({ timeout: 8_000 });
+          await knopf.click({ timeout: 12_000 });
         } catch {
-          throw new FachlichError("Speichern nicht geklickt");
+          await knopf.click({ timeout: 12_000, force: true }).catch(() => {
+            throw new FachlichError("Speichern nicht geklickt");
+          });
         }
-        await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+        await page.waitForLoadState("networkidle", { timeout: 12_000 }).catch(() => {});
         werte.clear();
         return;
       }
